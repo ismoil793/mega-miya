@@ -1,4 +1,4 @@
-# Mega Miyya (Mega Mind) - AI-Powered Code Reviewing Tool
+# Mega Miyya (Mega Mind) is an open source AI-Powered Code Reviewing Tool
 
 <img width="250" height="250" alt="mega-miyya-2" src="https://github.com/user-attachments/assets/45cfa5c4-73b9-4a58-945e-6dcff69da75d" />
 
