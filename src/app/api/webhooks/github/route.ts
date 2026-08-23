@@ -9,6 +9,9 @@ import { GitHubInstallationModel } from '@/models/GitHubInstallation';
 import crypto from 'crypto';
 import { resolveAccountLLMConfig } from '@/lib/account-llm-config';
 import { waitUntil } from '@vercel/functions';
+import { attachFullFileContext, attachMissingPatchContext, type ContextManifest } from '@/lib/review-context';
+import { discoverSupportingContext } from '@/lib/supporting-context';
+import { processReviewThreadWebhook } from '@/lib/auto-approval';
 
 // Give the managed background review enough time to call GitHub and the LLM.
 export const maxDuration = 300;
@@ -50,6 +53,14 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ message: 'Installation repositories event processed' });
     }
 
+    if (event === 'pull_request_review_thread') {
+      const repository = payload.repository?.full_name;
+      if (!repository) return NextResponse.json({ message: 'Event ignored' });
+      const token = await resolveInstallationToken(repository, payload.installation?.id);
+      const result = await processReviewThreadWebhook(payload, token);
+      return NextResponse.json({ message: `Review thread ${result}` });
+    }
+
     if (event !== 'pull_request') {
       return NextResponse.json({ message: 'Event ignored' });
     }
@@ -76,7 +87,7 @@ export async function POST(request: NextRequest) {
     const reviewId = await createOrUpdateReviewRecord(payload);
 
     // Keep the serverless invocation alive after returning a prompt webhook response.
-    waitUntil(processAICodeReview(reviewId, repository, pullRequest, installationId));
+    waitUntil(processAICodeReview(reviewId, repository, pullRequest, installationId, payload.repository.id));
 
     return NextResponse.json({ message: 'Review triggered', reviewId });
   } catch (error) {
@@ -183,15 +194,27 @@ async function createOrUpdateReviewRecord(payload: any): Promise<string | null> 
     });
 
     if (existing) {
-      await CodeReviewModel.findByIdAndUpdate(existing._id, { status: 'pending', updatedAt: new Date() });
+      await CodeReviewModel.findByIdAndUpdate(existing._id, {
+        $set: {
+          status: 'pending',
+          pullRequestNumber: pullRequest.number,
+          reviewedHeadSha: pullRequest.head.sha,
+          findingCommentIds: [],
+          findingTrackingComplete: false,
+          updatedAt: new Date(),
+        },
+        $unset: { approvalHeadSha: 1, approvalReviewId: 1, approvedAt: 1 },
+      });
       return existing._id.toString();
     }
 
     const review = new CodeReviewModel({
       repositoryId: payload.repository.id,
       pullRequestId: pullRequest.id,
+      pullRequestNumber: pullRequest.number,
       repositoryName: repository,
       status: 'pending',
+      reviewedHeadSha: pullRequest.head.sha,
     });
     await review.save();
     return review._id.toString();
@@ -206,12 +229,18 @@ async function processAICodeReview(
   repository: string,
   pullRequest: any,
   installationId: number | undefined,
+  repositoryId: number,
 ) {
   try {
+    const startedAt = Date.now();
     console.log(`Starting AI review for PR #${pullRequest.number} in ${repository}`);
 
     const installationToken = await resolveInstallationToken(repository, installationId);
     const llmConfig = await resolveAccountLLMConfig(installationId);
+    const installation: any = installationId
+      ? await GitHubInstallationModel.findOne({ installationId }).select('reviewSettings').lean()
+      : null;
+    const contextDepth = installation?.reviewSettings?.contextDepth;
 
     // Fetch the PR's changed files (includes the unified-diff patch per file).
     const files = await fetchAllPullRequestFiles(repository, pullRequest.number, installationToken);
@@ -224,6 +253,33 @@ async function processAICodeReview(
       status: f.status,
     }));
 
+    // Context is fetched at the immutable PR head SHA and kept in memory only.
+    // Any per-file failure safely falls back to the existing diff-only review.
+    const context = await attachFullFileContext({
+      repository,
+      headSha: pullRequest.head.sha,
+      token: installationToken,
+      files: reviewFiles,
+      enabled: contextDepth ? contextDepth !== 'diff' : undefined,
+    });
+    await attachMissingPatchContext({
+      repository,
+      baseSha: pullRequest.base?.sha,
+      token: installationToken,
+      files: context.files,
+      enabled: context.manifest.enabled,
+    });
+    const supporting = await discoverSupportingContext({
+      repository,
+      headSha: pullRequest.head.sha,
+      token: installationToken,
+      changedFiles: context.files,
+      enabled: contextDepth ? contextDepth === 'balanced' || contextDepth === 'deep' : undefined,
+      depth: contextDepth,
+    });
+    context.manifest.files.push(...supporting.manifest);
+    context.manifest.totalCharacters += supporting.manifest.reduce((sum, file) => sum + file.characters, 0);
+
     const review = await generateAICodeReview({
       repository,
       pullRequest: {
@@ -231,12 +287,38 @@ async function processAICodeReview(
         description: pullRequest.body,
         number: pullRequest.number,
       },
-      files: reviewFiles,
+      files: context.files,
+      contextManifest: context.manifest,
+      supportingContext: supporting.files,
     }, llmConfig);
 
-    await updateReviewStatus(reviewId, 'completed', review.result, review.model);
+    const posted = await postReview(repository, pullRequest.number, pullRequest.head.sha, review, installationToken);
+    await updateReviewStatus(reviewId, 'completed', review.result, review.model, review.contextManifest, {
+      githubReviewId: posted.githubReviewId,
+      findingCommentIds: posted.findingCommentIds,
+      findingTrackingComplete: posted.trackingComplete,
+      reviewedHeadSha: pullRequest.head.sha,
+    }, {
+      totalFiles: reviewFiles.length,
+      totalLines: reviewFiles.reduce((sum, file) => sum + file.additions + file.deletions, 0),
+      languages: Array.from(new Set(reviewFiles.map((file) => file.filename.split('.').pop() || 'unknown'))),
+      processingTime: Date.now() - startedAt,
+      tokensUsed: review.usage.estimatedTokens,
+      provider: review.usage.provider,
+      promptCharacters: review.usage.promptCharacters,
+      responseCharacters: review.usage.responseCharacters,
+      contextDepth: contextDepth || (context.manifest.enabled ? 'changed-files' : 'diff'),
+    });
 
-    await postReview(repository, pullRequest.number, pullRequest.head.sha, review, installationToken);
+    // Also evaluates a clean review (zero findings), for which no thread-resolved webhook will arrive.
+    if (posted.trackingComplete) {
+      await processReviewThreadWebhook({
+        action: 'resolved',
+        installation: { id: installationId },
+        repository: { id: repositoryId, full_name: repository },
+        pull_request: { id: pullRequest.id, number: pullRequest.number },
+      }, installationToken);
+    }
 
     console.log(`AI review completed for PR #${pullRequest.number} in ${repository}`);
   } catch (error) {
@@ -291,7 +373,15 @@ async function fetchAllPullRequestFiles(repository: string, prNumber: number, to
   return all;
 }
 
-async function updateReviewStatus(reviewId: string | null, status: string, reviewData?: any, model?: string) {
+async function updateReviewStatus(
+  reviewId: string | null,
+  status: string,
+  reviewData?: any,
+  model?: string,
+  contextManifest?: ContextManifest,
+  reviewState?: { githubReviewId?: number; findingCommentIds?: number[]; findingTrackingComplete?: boolean; reviewedHeadSha?: string },
+  metrics?: { totalFiles: number; totalLines: number; languages: string[]; processingTime: number; tokensUsed: number; provider: string; promptCharacters: number; responseCharacters: number; contextDepth: string },
+) {
   if (!reviewId) return;
   try {
     await connectDB();
@@ -299,6 +389,25 @@ async function updateReviewStatus(reviewId: string | null, status: string, revie
       status,
       review: reviewData,
       ...(model ? { 'metadata.aiModel': model } : {}),
+      ...(contextManifest ? {
+        'metadata.contextFiles': contextManifest.files,
+        'metadata.contextFileCount': contextManifest.files.length,
+        'metadata.contextCharacters': contextManifest.totalCharacters,
+        'metadata.contextTruncatedFileCount': contextManifest.files.filter((file) => file.truncated).length,
+      } : {}),
+      ...(reviewState || {}),
+      ...(metrics ? {
+        'metadata.totalFiles': metrics.totalFiles,
+        'metadata.totalLines': metrics.totalLines,
+        'metadata.languages': metrics.languages,
+        'metadata.processingTime': metrics.processingTime,
+        'metadata.tokensUsed': metrics.tokensUsed,
+        'metadata.tokensEstimated': true,
+        'metadata.aiProvider': metrics.provider,
+        'metadata.promptCharacters': metrics.promptCharacters,
+        'metadata.responseCharacters': metrics.responseCharacters,
+        'metadata.contextDepth': metrics.contextDepth,
+      } : {}),
       updatedAt: new Date(),
     });
   } catch (error) {

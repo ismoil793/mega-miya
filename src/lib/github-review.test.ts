@@ -80,6 +80,17 @@ async function buildReview() {
   });
 }
 
+async function buildContextAwareReview() {
+  return generateAICodeReview({
+    repository: 'demo/repo',
+    pullRequest: { title: 'Add user helpers', description: '', number: 7 },
+    files: [{
+      filename: 'src/user.js', patch: PATCH, additions: 6, deletions: 1,
+      fullContent: 'function unchangedHelper() { return 42; }\n' + PATCH,
+    }],
+  });
+}
+
 describe('review pipeline (LLM + GitHub mocked)', () => {
   beforeEach(() => {
     jest.clearAllMocks();
@@ -96,6 +107,26 @@ describe('review pipeline (LLM + GitHub mocked)', () => {
     expect(review.result.issues.some((i) => i.severity === 'high' && i.type === 'bug')).toBe(true);
     // The low-severity style note becomes a "suggestion".
     expect(review.result.suggestions.some((s) => s.severity === 'low')).toBe(true);
+  });
+
+  it('labels full-file context separately while preserving diff-only line rules', async () => {
+    mockModelResponse();
+    await buildContextAwareReview();
+    const request = callLLM.mock.calls[0][0];
+    expect(request.user).toContain('--- CHANGED DIFFS ---');
+    expect(request.user).toContain('--- FULL CHANGED FILES ---');
+    expect(request.user).toContain('unchangedHelper');
+    expect(request.system).toContain('Never report a finding on a line that is not present in CHANGED DIFFS');
+  });
+
+  it('reviews missing-patch before/after context but discards inline findings without real diff anchors', async () => {
+    mockModelResponse();
+    const review = await generateAICodeReview({
+      repository: 'demo/repo', pullRequest: { title: 'Large change', number: 8 },
+      files: [{ filename: 'src/user.js', additions: 100, deletions: 100, reasoningPatch: '--- BASE\nold\n--- HEAD\nnew' }],
+    });
+    expect(callLLM.mock.calls[0][0].user).toContain('CHANGED FILES WITHOUT GITHUB PATCHES');
+    expect(review.result.comments).toEqual([]);
   });
 
   it('posts validated inline comments + upserts the summary', async () => {

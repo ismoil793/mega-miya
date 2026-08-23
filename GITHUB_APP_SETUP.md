@@ -37,7 +37,9 @@ Webhook secret: [use the same as GITHUB_WEBHOOK_SECRET]
 
 **Subscribe to events:**
 - `Pull requests`
-- `Issues` (optional, for future features)
+- `Pull request review threads` (required for approval after findings are resolved)
+- `Installation`
+- `Installation repositories`
 
 ### 3. Install the App
 
@@ -70,24 +72,14 @@ GITHUB_APP_NAME=mega-miya
 
 ## 🔧 How It Works
 
-### Current Flow (OAuth Only):
-1. User connects with OAuth → Gets personal access token
-2. Webhook triggers → Uses personal token to post comments
-3. Comments appear under **user's name**
+### Current flow (OAuth + GitHub App)
 
-### New Flow (OAuth + GitHub App):
-1. User connects with OAuth → Gets personal access token (for reading)
-2. Webhook triggers → Uses personal token to read repository data
-3. **Uses GitHub App** to post comments:
-   - Automatically detects installation ID for the repository
-   - Generates installation token dynamically
-   - Posts comment as bot
-4. Comments appear under **bot's name**
+1. OAuth signs the user into the dashboard and establishes which GitHub accounts they may administer. OAuth repository tokens are not stored.
+2. The GitHub App installation grants repository access and sends signed webhooks.
+3. Mega-Miya creates a short-lived installation token to read the reviewed commit and post comments or approvals as the bot.
+4. Account owners configure their own LLM credential and review behavior in the dashboard.
 
-### Fallback Behavior:
-- If GitHub App is not configured → Falls back to personal token
-- If GitHub App fails → Falls back to personal token
-- Always logs which method is being used
+There is no personal-token fallback for repository reads or review writes. If the GitHub App is unavailable or lacks permission, the review fails closed.
 
 ## 🧪 Testing
 
@@ -102,15 +94,9 @@ The app will log the GitHub App configuration:
 ✅ Bot comment posted to PR #5 in username/repo
 ```
 
-### 2. Test Fallback
+### 2. Test automatic approval
 
-If GitHub App is not configured:
-
-```
-👤 GitHub App not configured, using personal token...
-🔧 GitHub App config: { appId: 'missing', privateKey: 'missing' }
-✅ Personal comment posted to PR #5 in username/repo
-```
+Enable **Pull request review threads** in both development and production GitHub Apps. Turn on automatic approval in **Review behavior**, open a PR that produces an inline finding, and resolve its final Mega-Miya thread. The approval applies only when the reviewed head SHA is still current.
 
 ## 🔍 Troubleshooting
 
@@ -125,10 +111,11 @@ If GitHub App is not configured:
    - Ensure the app has the required permissions
    - Verify the repository owner has granted access to the app
 
-3. **"GitHub App failed, falling back to personal token"**
-   - This is normal fallback behavior
-   - Check the logs for the specific error
-   - Verify the app permissions and installation
+3. **Review-thread resolution does not approve**
+   - Enable the **Pull request review threads** webhook subscription
+   - Verify **Pull requests: Read & write** permission
+   - Confirm automatic approval is enabled for the installed GitHub account
+   - Confirm no newer commit was pushed after Mega-Miya reviewed the PR
 
 ### Debug Commands
 
@@ -154,12 +141,7 @@ node find-installation-id.js
 
 ## 🔄 Migration
 
-The system is designed to work with or without the GitHub App:
-
-- **With GitHub App**: Comments posted as bot
-- **Without GitHub App**: Comments posted as user (current behavior)
-
-You can set up the GitHub App at any time without breaking existing functionality.
+Repository review requires the GitHub App. OAuth remains a separate identity-only integration for dashboard sign-in.
 
 ## 📚 Resources
 
@@ -167,4 +149,4 @@ You can set up the GitHub App at any time without breaking existing functionalit
 - [GitHub App Permissions](https://docs.github.com/en/apps/creating-github-apps/setting-up-a-github-app/creating-a-github-app#choosing-permissions)
 - [Installation Tokens](https://docs.github.com/en/apps/creating-github-apps/authenticating-with-a-github-app/generating-an-installation-access-token-for-a-github-app)
 
-**That's it!** Your AI code review tool will now post comments under the bot's name while maintaining all existing functionality. 
+**That's it!** Your AI code review tool will now post comments under the bot's name while maintaining all existing functionality.

@@ -4,6 +4,7 @@ import { ReviewResult, ReviewMetadata, Suggestion, Issue, ReviewComment } from '
 // Define the base interface without id to avoid conflicts
 export interface CodeReviewData {
   pullRequestId: number;
+  pullRequestNumber?: number;
   repositoryId: number;
   repositoryName: string;
   status: 'pending' | 'completed' | 'failed';
@@ -11,6 +12,13 @@ export interface CodeReviewData {
   updatedAt: Date;
   review?: ReviewResult;
   metadata?: ReviewMetadata;
+  reviewedHeadSha?: string;
+  githubReviewId?: number;
+  findingCommentIds?: number[];
+  findingTrackingComplete?: boolean;
+  approvalHeadSha?: string;
+  approvalReviewId?: number;
+  approvedAt?: Date;
 }
 
 export interface CodeReviewDocument extends CodeReviewData, Document {}
@@ -88,10 +96,28 @@ const ReviewMetadataSchema = new Schema<ReviewMetadata>({
   aiModel: { type: String, required: true },
   processingTime: { type: Number, required: true },
   tokensUsed: { type: Number, required: true },
+  tokensEstimated: { type: Boolean },
+  aiProvider: { type: String },
+  promptCharacters: { type: Number },
+  responseCharacters: { type: Number },
+  contextDepth: { type: String },
+  resolvedFindingCount: { type: Number },
+  unresolvedFindingCount: { type: Number },
+  contextFileCount: { type: Number },
+  contextCharacters: { type: Number },
+  contextTruncatedFileCount: { type: Number },
+  contextFiles: [{
+    filename: { type: String, required: true },
+    characters: { type: Number, required: true },
+    truncated: { type: Boolean, required: true },
+    reason: { type: String },
+    _id: false,
+  }],
 });
 
 const CodeReviewSchema = new Schema<CodeReviewDocument>({
   pullRequestId: { type: Number, required: true },
+  pullRequestNumber: { type: Number },
   repositoryId: { type: Number, required: true },
   repositoryName: { type: String, required: true },
   status: { 
@@ -101,6 +127,13 @@ const CodeReviewSchema = new Schema<CodeReviewDocument>({
   },
   review: { type: ReviewResultSchema },
   metadata: { type: ReviewMetadataSchema },
+  reviewedHeadSha: { type: String },
+  githubReviewId: { type: Number },
+  findingCommentIds: [{ type: Number }],
+  findingTrackingComplete: { type: Boolean, default: false },
+  approvalHeadSha: { type: String },
+  approvalReviewId: { type: Number },
+  approvedAt: { type: Date },
 }, {
   timestamps: true,
 });
@@ -111,4 +144,4 @@ CodeReviewSchema.index({ repositoryId: 1 });
 CodeReviewSchema.index({ status: 1 });
 CodeReviewSchema.index({ createdAt: -1 });
 
-export const CodeReviewModel = mongoose.models.CodeReview || mongoose.model<CodeReviewDocument>('CodeReview', CodeReviewSchema); 
+export const CodeReviewModel = mongoose.models.CodeReview || mongoose.model<CodeReviewDocument>('CodeReview', CodeReviewSchema);

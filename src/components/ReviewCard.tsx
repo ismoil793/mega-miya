@@ -47,7 +47,7 @@ export default function ReviewCard({ review, onViewDetails }: ReviewCardProps) {
           </div>
           
           <p className="text-sm text-gray-500">
-            PR #{review.pullRequestId} • Created {formatDistanceToNow(new Date(review.createdAt), { addSuffix: true })}
+            PR #{review.pullRequestNumber || review.pullRequestId} • Created {formatDistanceToNow(new Date(review.createdAt), { addSuffix: true })}
           </p>
         </div>
         
@@ -107,12 +107,27 @@ export default function ReviewCard({ review, onViewDetails }: ReviewCardProps) {
             <div className="border-t pt-4">
               <div className="flex items-center justify-between text-xs text-gray-500">
                 <span>
-                  {review.metadata.totalFiles} files • {review.metadata.totalLines} lines
+                  {review.metadata.totalFiles || 0} files • {review.metadata.totalLines || 0} lines
                 </span>
                 <span>
-                  {review.metadata.languages.join(', ')}
+                  {review.metadata.languages?.join(', ') || 'Unknown language'}
                 </span>
               </div>
+              {typeof review.metadata.contextFileCount === 'number' && (
+                <div className="mt-2 text-xs text-gray-500">
+                  AI context: {review.metadata.contextFileCount} files, {review.metadata.contextCharacters || 0} characters
+                  {review.metadata.contextTruncatedFileCount ? ` (${review.metadata.contextTruncatedFileCount} truncated)` : ''}
+                  {review.metadata.contextFiles?.length ? ` — ${review.metadata.contextFiles.map((file) => file.filename).join(', ')}` : ''}
+                </div>
+              )}
+              <div className="mt-2 text-xs text-gray-500">
+                {review.metadata.aiProvider || 'AI'} / {review.metadata.aiModel || 'configured model'} · {review.metadata.tokensUsed || 0}{review.metadata.tokensEstimated ? ' estimated' : ''} tokens · {review.metadata.processingTime || 0} ms
+              </div>
+              {typeof review.metadata.resolvedFindingCount === 'number' && (
+                <div className="mt-2 text-xs text-gray-500">
+                  Findings: {review.metadata.resolvedFindingCount} resolved · {review.metadata.unresolvedFindingCount || 0} unresolved
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -145,4 +160,4 @@ export default function ReviewCard({ review, onViewDetails }: ReviewCardProps) {
       </div>
     </div>
   );
-} 
+}

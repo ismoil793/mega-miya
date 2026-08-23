@@ -6,6 +6,7 @@ import { formatDistanceToNow } from 'date-fns';
 import RepositoryModal from '@/components/RepositoryModal';
 import GitHubAppInstallation from '@/components/GitHubAppInstallation';
 import LLMSettings from '@/components/LLMSettings';
+import ReviewSettings from '@/components/ReviewSettings';
 
 interface User {
   id: string;
@@ -308,6 +309,7 @@ export default function Dashboard() {
       {/* Main Content */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {user && <div className="mb-8"><LLMSettings /></div>}
+        {user && <div className="mb-8"><ReviewSettings /></div>}
 
         {/* Stats */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">

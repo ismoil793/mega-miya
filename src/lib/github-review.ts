@@ -74,6 +74,12 @@ interface InlinePayload {
   body: string;
 }
 
+export interface PostedReviewInfo {
+  githubReviewId?: number;
+  findingCommentIds: number[];
+  trackingComplete: boolean;
+}
+
 /**
  * Post the review: inline comments (deduped, line-validated) + upserted summary.
  */
@@ -83,7 +89,7 @@ export async function postReview(
   commitSha: string,
   review: GeneratedReview,
   token: string,
-): Promise<void> {
+): Promise<PostedReviewInfo> {
   const { result, diffs } = review;
   const minRank = minSeverityRank();
 
@@ -109,8 +115,9 @@ export async function postReview(
     inline.push({ path: c.file, line, side: 'RIGHT', body: commentBody(c) });
   }
 
-  await postInlineReview(repository, prNumber, commitSha, inline, token);
+  const posted = await postInlineReview(repository, prNumber, commitSha, inline, token);
   await upsertSummary(repository, prNumber, result.summary, result.score, eligible, unanchored, token);
+  return posted;
 }
 
 async function postInlineReview(
@@ -119,8 +126,8 @@ async function postInlineReview(
   commitSha: string,
   comments: InlinePayload[],
   token: string,
-): Promise<void> {
-  if (comments.length === 0) return;
+): Promise<PostedReviewInfo> {
+  if (comments.length === 0) return { findingCommentIds: [], trackingComplete: true };
 
   const res = await fetch(`${GH}/repos/${repository}/pulls/${prNumber}/reviews`, {
     method: 'POST',
@@ -136,11 +143,29 @@ async function postInlineReview(
     const errText = await res.text();
     console.error(`❌ Failed to post inline review (${res.status}): ${errText}`);
     // Fall back to posting comments individually so one bad anchor doesn't sink all.
+    const ids: number[] = [];
     for (const c of comments) {
-      await postSingleInlineComment(repository, prNumber, commitSha, c, token);
+      const id = await postSingleInlineComment(repository, prNumber, commitSha, c, token);
+      if (id) ids.push(id);
     }
+    return { findingCommentIds: ids, trackingComplete: ids.length === comments.length };
   } else {
     console.log(`✅ Posted ${comments.length} inline comment(s) on PR #${prNumber}`);
+    const created = await res.json();
+    const reviewId = typeof created?.id === 'number' ? created.id : undefined;
+    const ids = reviewId ? await fetchReviewCommentIds(repository, prNumber, reviewId, token) : [];
+    return { githubReviewId: reviewId, findingCommentIds: ids, trackingComplete: ids.length === comments.length };
+  }
+}
+
+async function fetchReviewCommentIds(repository: string, prNumber: number, reviewId: number, token: string): Promise<number[]> {
+  try {
+    const response = await fetch(`${GH}/repos/${repository}/pulls/${prNumber}/reviews/${reviewId}/comments?per_page=100`, { headers: headers(token) });
+    if (!response.ok) return [];
+    const comments = await response.json();
+    return (Array.isArray(comments) ? comments : []).map((comment: any) => comment.id).filter(Number.isSafeInteger);
+  } catch {
+    return [];
   }
 }
 
@@ -150,7 +175,7 @@ async function postSingleInlineComment(
   commitSha: string,
   c: InlinePayload,
   token: string,
-): Promise<void> {
+): Promise<number | undefined> {
   try {
     const res = await fetch(`${GH}/repos/${repository}/pulls/${prNumber}/comments`, {
       method: 'POST',
@@ -159,9 +184,13 @@ async function postSingleInlineComment(
     });
     if (!res.ok) {
       console.error(`  ↳ skipped comment on ${c.path}:${c.line} (${res.status})`);
+      return undefined;
     }
+    const created = await res.json();
+    return typeof created?.id === 'number' ? created.id : undefined;
   } catch (err) {
     console.error(`  ↳ error posting comment on ${c.path}:${c.line}:`, err);
+    return undefined;
   }
 }
 

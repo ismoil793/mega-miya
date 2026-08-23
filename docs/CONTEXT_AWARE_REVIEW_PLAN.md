@@ -1,6 +1,6 @@
 # Context-Aware Code Review Plan
 
-Status: planned  
+Status: implemented; production rollout and measurement remain
 Created: 2026-08-23  
 Priority: high — review quality improvement  
 Depends on: secure GitHub App installation access and account-level BYOK
@@ -304,16 +304,157 @@ Required behavior:
 - Review latency and customer LLM cost remain within documented limits.
 - No source-context leakage into logs, MongoDB, unrelated tenants, or the wrong LLM credential.
 
+## Automatic approval after Mega-Miya findings are resolved
+
+Status: implemented; requires GitHub App event subscription and account opt-in
+Default: disabled until explicitly enabled by an organization administrator
+
+### Desired behavior
+
+Mega-Miya should approve a pull request when every active inline review thread created by Mega-Miya for the latest reviewed commit has been resolved and no newer review is pending or failed.
+
+The approval must apply to the exact current PR head SHA. A previous clean review or a set of resolved threads must never approve commits pushed afterward.
+
+### Required GitHub App configuration
+
+Repository permission:
+
+- **Pull requests: Read & write** — already required for reading PRs, posting inline review comments, and creating an approving review.
+
+Webhook subscription:
+
+- **Pull request review thread** — add this event to the GitHub App subscriptions.
+
+GitHub emits `pull_request_review_thread` activity when a thread is resolved or made unresolved. Receiving this webhook requires at least Pull requests: read permission; Mega-Miya already needs write permission to post and approve reviews.
+
+After changing GitHub App permissions or event subscriptions, existing installations may need their organization owner to accept the updated configuration. The webhook settings should be changed independently for development and production GitHub Apps.
+
+### Approval API
+
+Use the installation access token to create a PR review:
+
+```text
+POST /repos/{owner}/{repo}/pulls/{pull_number}/reviews
+```
+
+Conceptual request body:
+
+```json
+{
+  "commit_id": "the-current-pr-head-sha",
+  "event": "APPROVE",
+  "body": "All active Mega-Miya review threads for this commit have been resolved."
+}
+```
+
+GitHub App installation tokens can use this endpoint when the app has Pull requests: write permission.
+
+### Source of truth for thread resolution
+
+Do not approve based only on the single `resolved` webhook that just arrived. A PR can contain other unresolved Mega-Miya threads.
+
+On every `resolved` or `unresolved` event:
+
+1. Verify the webhook signature, installation, repository, and enabled state.
+2. Load the current PR and current `head.sha` from GitHub.
+3. Load the latest completed Mega-Miya review record.
+4. Require the stored reviewed head SHA to equal the current head SHA.
+5. Query all PR review threads and their `isResolved` state, preferably through GitHub GraphQL.
+6. Consider only threads whose root comment was authored by this Mega-Miya GitHub App or whose comment ID is recorded as a Mega-Miya finding.
+7. If any active Mega-Miya thread is unresolved, do not approve.
+8. If the latest review is pending, failed, incomplete, or produced unposted findings, do not approve.
+9. Check whether Mega-Miya has already approved the same head SHA to keep the operation idempotent.
+10. Submit an `APPROVE` review for that exact head SHA.
+
+Recording the GitHub review/comment/thread IDs created by Mega-Miya is safer than identifying comments only from display names or text markers.
+
+### Data model changes
+
+Review records should add:
+
+```ts
+interface ReviewApprovalState {
+  reviewedHeadSha: string;
+  githubReviewId?: number;
+  findingCommentIds: number[];
+  approvalHeadSha?: string;
+  approvalReviewId?: number;
+  approvedAt?: Date;
+}
+```
+
+Store identifiers and state only; do not duplicate repository source content.
+
+### Safety rules
+
+- Automatic approval must be opt-in per organization and optionally overridable per repository.
+- Never approve draft PRs.
+- Never approve a closed or merged PR.
+- Never approve when the current head SHA differs from the reviewed SHA.
+- Never approve while a review job for the current SHA is pending or failed.
+- Never treat threads created by humans or other bots as Mega-Miya findings.
+- An `unresolved` event after approval should trigger reevaluation; do not create repeated approvals. Depending on GitHub API capabilities and repository policy, dismiss the bot's approval or submit a new non-approving/request-changes review.
+- A new `synchronize` event must invalidate the stored approval state and trigger a new review.
+- If GitHub branch protection dismisses stale approvals after new commits, rely on that behavior as defense in depth, not as the primary SHA check.
+- Do not approve solely because the LLM returned zero comments if the review request failed or its response could not be parsed.
+- Organization administrators must be told that resolving a thread represents acceptance of that finding; it does not prove that code changed.
+
+### Relationship to branch protection
+
+Mega-Miya approval and GitHub's **Require conversation resolution before merging** rule are separate controls:
+
+- Conversation resolution ensures required threads are resolved.
+- Mega-Miya approval creates an approving review.
+- Repository rules may still require human approvals, code-owner approvals, status checks, deployments, or approval by someone other than the latest pusher.
+- Some rulesets may not count a bot approval toward every required-review policy. Mega-Miya must report the API result but must not claim the PR is mergeable without checking GitHub's merge/rules state.
+
+### Acceptance criteria
+
+- `pull_request_review_thread` resolved and unresolved webhooks are accepted and signature-verified.
+- A PR with one or more unresolved Mega-Miya threads is never approved.
+- Resolving the final Mega-Miya thread approves only the currently reviewed head SHA.
+- Threads belonging to other reviewers do not affect Mega-Miya's own approval decision unless organization policy explicitly requires all threads.
+- Pushing a new commit prevents approval until the new SHA has completed review.
+- Duplicate webhook deliveries do not create duplicate approvals.
+- Draft, closed, merged, failed-review, and missing-credential states never approve.
+- Tests cover multiple threads, thread reopening, new commits, stale webhook delivery, duplicate delivery, and GitHub API failures.
+
+### Recommended implementation order
+
+1. Persist `reviewedHeadSha` and GitHub comment/review IDs during the existing posting flow.
+2. Subscribe both GitHub Apps to **Pull request review thread** events.
+3. Add a GraphQL helper to load thread resolution state.
+4. Add an organization/repository `autoApproveWhenResolved` setting, default false.
+5. Implement the approval decision as a pure, heavily tested policy function.
+6. Handle resolved/unresolved webhooks through a durable idempotent job.
+7. Add approval audit history to the dashboard.
+
 ## Open decisions
 
-- Should full changed-file context be enabled by default for all hosted accounts?
-- What initial total character/token budget is acceptable for customer-paid LLM usage?
-- Should customers choose `diff only`, `balanced`, or `deep` context profiles?
-- Which secret-scanning library or service should run before transmission?
-- Should supporting context filenames be included in the public PR summary or only in the private dashboard?
-- Which language should follow TypeScript/JavaScript support?
-- Should missing-patch files be reviewed using locally generated diffs in Phase 1 or a later phase?
+Implementation decisions:
+
+- Hosted accounts default to `diff` context and must explicitly select a deeper profile.
+- The initial total context budget is 120,000 characters with independently bounded files and fetch concurrency.
+- Administrators can choose `diff`, `changed-files`, `balanced`, or `deep` context.
+- Initial secret scanning uses built-in sensitive-path rejection plus conservative credential-pattern redaction without adding a third-party scanner.
+- Context filenames and counts are visible only in the authenticated dashboard, not the public PR summary.
+- Deterministic import support covers TypeScript/JavaScript first, plus Python and Go import forms; deep mode performs bounded same-directory caller discovery for common source extensions.
+- Missing GitHub patches receive bounded base/head reasoning context and cannot create inline findings without real GitHub diff anchors.
+- Automatic approval considers only recorded Mega-Miya root comment IDs.
+- Reopening a Mega-Miya thread attempts to dismiss the bot's approval.
+- CI/status requirements remain GitHub ruleset responsibilities; Mega-Miya does not claim that approval means mergeable.
 
 ## Recommended next action
 
-Implement Phase 1 behind `REVIEW_INCLUDE_FULL_FILES`, defaulting to false until privacy disclosure, size limits, tests, and review-cost measurements are complete.
+Enable the **Pull request review thread** webhook subscription on both GitHub Apps, then validate all context profiles and automatic approval against representative repositories. Measure accepted findings, review latency, estimated versus provider-reported token usage, and dismissal rates before changing hosted defaults.
+
+### Phase 1 implementation note (2026-08-23)
+
+Phase 1 is implemented behind `REVIEW_INCLUDE_FULL_FILES`, defaulting to false. The implementation fetches changed-file content at the immutable PR head SHA, rejects sensitive/excluded paths before fetching, detects binary content, enforces file/count/total-character limits and timeouts, falls back per file, labels full files separately in the prompt, and stores only a content-free context manifest in review metadata.
+
+### Remaining phases implementation note (2026-08-23)
+
+- Phase 2 implements immutable tree discovery, relative imports, matching tests, nearby configuration, deterministic ordering, budgets, exclusions, and redaction.
+- Phase 3 implements additional Python/Go import extraction and bounded deep-mode caller discovery based on symbols declared in changed files. A persistent repository index remains intentionally deferred until measurements justify its security and maintenance cost.
+- Phase 4 implements account-owner context-depth controls, privacy disclosure, context manifests in review history, provider/model/latency/character metrics, and clearly labeled estimated tokens.
+- Automatic approval implements commit-SHA checks, recorded bot comment IDs, paginated thread resolution queries, duplicate-delivery protection, clean-review approval, and reopened-thread dismissal. It remains opt-in and requires the GitHub App webhook subscription documented above.

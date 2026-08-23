@@ -69,6 +69,7 @@ export interface GitHubFile {
 export interface CodeReview {
   id: string;
   pullRequestId: number;
+  pullRequestNumber?: number;
   repositoryId: number;
   repositoryName: string;
   status: 'pending' | 'completed' | 'failed';
@@ -133,6 +134,17 @@ export interface ReviewMetadata {
   aiModel: string;
   processingTime: number;
   tokensUsed: number;
+  tokensEstimated?: boolean;
+  aiProvider?: string;
+  promptCharacters?: number;
+  responseCharacters?: number;
+  contextDepth?: string;
+  resolvedFindingCount?: number;
+  unresolvedFindingCount?: number;
+  contextFileCount?: number;
+  contextCharacters?: number;
+  contextTruncatedFileCount?: number;
+  contextFiles?: Array<{ filename: string; characters: number; truncated: boolean; reason?: string }>;
 }
 
 // User and Authentication types
@@ -186,4 +198,4 @@ export interface PaginatedResponse<T> {
     total: number;
     totalPages: number;
   };
-} 
+}
