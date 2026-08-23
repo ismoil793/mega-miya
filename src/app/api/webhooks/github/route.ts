@@ -8,6 +8,10 @@ import { githubAppService } from '@/lib/github-app';
 import { GitHubInstallationModel } from '@/models/GitHubInstallation';
 import crypto from 'crypto';
 import { resolveAccountLLMConfig } from '@/lib/account-llm-config';
+import { waitUntil } from '@vercel/functions';
+
+// Give the managed background review enough time to call GitHub and the LLM.
+export const maxDuration = 300;
 
 /** When true, review every repo the app is installed on (no DB opt-in needed). */
 function reviewAllRepos(): boolean {
@@ -71,10 +75,8 @@ export async function POST(request: NextRequest) {
     // Best-effort review record (never block the review if the DB is unavailable).
     const reviewId = await createOrUpdateReviewRecord(payload);
 
-    // Kick off the review without blocking the webhook response.
-    processAICodeReview(reviewId, repository, pullRequest, installationId).catch((err) =>
-      console.error('Unhandled error in processAICodeReview:', err),
-    );
+    // Keep the serverless invocation alive after returning a prompt webhook response.
+    waitUntil(processAICodeReview(reviewId, repository, pullRequest, installationId));
 
     return NextResponse.json({ message: 'Review triggered', reviewId });
   } catch (error) {
