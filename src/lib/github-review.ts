@@ -198,7 +198,7 @@ function buildSummaryBody(
     body += `\n`;
   }
 
-  body += `---\n*🤖 Automated review by [Mega Miya](https://github.com/) — verify suggestions before applying.*`;
+  body += `---\n*🤖 Automated review by [Mega Miya](https://github.com/ismoil793/mega-miya) — verify suggestions before applying.*`;
   return body;
 }
 
