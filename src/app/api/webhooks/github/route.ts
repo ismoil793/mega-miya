@@ -238,7 +238,8 @@ async function processAICodeReview(
 
     console.log(`AI review completed for PR #${pullRequest.number} in ${repository}`);
   } catch (error) {
-    console.error(`AI review failed for PR #${pullRequest.number}:`, error);
+    console.error(`AI review PR#${pullRequest.number}:`, error);
+    console.log(`AI review PR#${pullRequest.number}:`, error);
     await updateReviewStatus(reviewId, 'failed', {
       summary: 'Review failed due to an error',
       score: 0,
