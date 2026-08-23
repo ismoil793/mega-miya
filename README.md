@@ -115,6 +115,9 @@ An intelligent code review tool that automatically analyzes pull requests using 
 - `POST /api/webhooks/github` - GitHub webhook handler
 - `GET /api/reviews` - Get review history
 - `POST /api/github-app/installation-status` - Check GitHub App installation status
+- `GET /api/llm-settings` - List configurable GitHub accounts and provider status
+- `PUT /api/llm-settings` - Encrypt and save an account-level provider credential
+- `DELETE /api/llm-settings` - Delete an account-level provider credential
 - `GET /api/github-app/cache-stats` - Get installation ID cache statistics
 - `DELETE /api/github-app/cache-stats` - Clear all installation ID cache
 
@@ -122,11 +125,13 @@ An intelligent code review tool that automatically analyzes pull requests using 
 
 | Variable | Description | Required |
 |----------|-------------|----------|
+| `REQUIRE_BYOK` | Require an account-level customer LLM credential; prevents fallback to a deployment key | Recommended true for hosted mode |
+| `AI_API_CREDENTIAL_ENCRYPTION_KEY` | Base64-encoded 32-byte AES key used to encrypt customer LLM credentials | For hosted BYOK |
 | `AI_PROVIDER` | `anthropic` \| `openai` \| `openai-compatible` \| `ollama` | Yes |
 | `ANTHROPIC_API_KEY` | Anthropic API key | If provider = anthropic |
 | `ANTHROPIC_MODEL` | Claude model (default `claude-opus-4-8`) | No |
 | `OPENAI_API_KEY` | OpenAI (or compatible endpoint) API key | If provider = openai/openai-compatible |
-| `OPENAI_MODEL` | Model name (default `gpt-4o`) | No |
+| `OPENAI_MODEL` | Model name (default `gpt-5.4`) | No |
 | `OPENAI_BASE_URL` | Base URL for an OpenAI-compatible endpoint | If provider = openai-compatible |
 | `OLLAMA_URL` | Ollama server URL (default `http://localhost:11434`) | If provider = ollama |
 | `OLLAMA_MODEL` | Ollama model name (default `codellama`) | If provider = ollama |

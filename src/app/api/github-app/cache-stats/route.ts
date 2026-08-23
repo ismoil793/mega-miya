@@ -1,8 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { githubAppService } from '@/lib/github-app';
+import { getAuthenticatedUser, hasValidRequestOrigin } from '@/lib/auth';
 
 export async function GET(request: NextRequest) {
   try {
+    if (process.env.NODE_ENV === 'production') {
+      return NextResponse.json({ error: 'Not found' }, { status: 404 });
+    }
+    if (!await getAuthenticatedUser(request)) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
     // Check if GitHub App is configured
     if (!githubAppService.isConfigured()) {
       return NextResponse.json({ 
@@ -28,6 +35,15 @@ export async function GET(request: NextRequest) {
 
 export async function DELETE(request: NextRequest) {
   try {
+    if (process.env.NODE_ENV === 'production') {
+      return NextResponse.json({ error: 'Not found' }, { status: 404 });
+    }
+    if (!hasValidRequestOrigin(request)) {
+      return NextResponse.json({ error: 'Invalid request origin' }, { status: 403 });
+    }
+    if (!await getAuthenticatedUser(request)) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
     // Check if GitHub App is configured
     if (!githubAppService.isConfigured()) {
       return NextResponse.json({ 
@@ -47,4 +63,4 @@ export async function DELETE(request: NextRequest) {
       error: 'Failed to clear cache' 
     }, { status: 500 });
   }
-} 
+}

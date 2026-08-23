@@ -5,6 +5,7 @@ import { CodeReview } from '@/types';
 import { formatDistanceToNow } from 'date-fns';
 import RepositoryModal from '@/components/RepositoryModal';
 import GitHubAppInstallation from '@/components/GitHubAppInstallation';
+import LLMSettings from '@/components/LLMSettings';
 
 interface User {
   id: string;
@@ -28,7 +29,6 @@ export default function Dashboard() {
   const [showRepositoryModal, setShowRepositoryModal] = useState(false);
 
   useEffect(() => {
-    fetchReviews();
     checkOAuthStatus();
     fetchUser();
   }, []);
@@ -40,9 +40,13 @@ export default function Dashboard() {
       
       if (data.user) {
         setUser(data.user);
+        await fetchReviews();
+      } else {
+        setLoading(false);
       }
     } catch (error) {
       console.error('Failed to fetch user:', error);
+      setLoading(false);
     }
   };
 
@@ -57,8 +61,6 @@ export default function Dashboard() {
       setOauthMessage('Successfully connected to GitHub!');
       // Clear URL parameters
       window.history.replaceState({}, document.title, window.location.pathname);
-      // Fetch user data after successful connection
-      setTimeout(() => fetchUser(), 1000);
     } else if (error) {
       setOauthStatus('error');
       setOauthMessage(`Connection failed: ${error}`);
@@ -206,7 +208,10 @@ export default function Dashboard() {
                   )}
                 </button>
               )}
-              <button className="btn-secondary">
+              <button
+                className="btn-secondary"
+                onClick={() => document.getElementById('ai-settings')?.scrollIntoView({ behavior: 'smooth' })}
+              >
                 Settings
               </button>
             </div>
@@ -302,6 +307,8 @@ export default function Dashboard() {
 
       {/* Main Content */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {user && <div className="mb-8"><LLMSettings /></div>}
+
         {/* Stats */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
           <div className="card">

@@ -23,7 +23,17 @@ export interface LLMRequest {
 
 export type AIProvider = 'openai' | 'openai-compatible' | 'anthropic' | 'ollama';
 
-export function getProvider(): AIProvider {
+export interface LLMConfig {
+  provider: AIProvider;
+  model: string;
+  apiKey?: string;
+  baseUrl?: string;
+  maxTokens?: number;
+  temperature?: number;
+}
+
+export function getProvider(config?: LLMConfig): AIProvider {
+  if (config) return config.provider;
   const raw = (process.env.AI_PROVIDER || 'openai').toLowerCase();
   if (raw === 'openai' || raw === 'openai-compatible' || raw === 'anthropic' || raw === 'ollama') {
     return raw;
@@ -35,25 +45,25 @@ export function getProvider(): AIProvider {
 const MAX_TOKENS = parseInt(process.env.LLM_MAX_TOKENS || '4000', 10);
 const TEMPERATURE = parseFloat(process.env.LLM_TEMPERATURE || '0.2');
 
-export async function callLLM(req: LLMRequest): Promise<string> {
-  switch (getProvider()) {
+export async function callLLM(req: LLMRequest, config?: LLMConfig): Promise<string> {
+  switch (getProvider(config)) {
     case 'anthropic':
-      return callAnthropic(req);
+      return callAnthropic(req, config);
     case 'ollama':
-      return callOllama(req);
+      return callOllama(req, config);
     case 'openai':
     case 'openai-compatible':
     default:
-      return callOpenAICompatible(req);
+      return callOpenAICompatible(req, config);
   }
 }
 
-async function callOpenAICompatible(req: LLMRequest): Promise<string> {
+async function callOpenAICompatible(req: LLMRequest, config?: LLMConfig): Promise<string> {
   const client = new OpenAI({
-    apiKey: process.env.OPENAI_API_KEY || 'not-needed',
-    baseURL: process.env.OPENAI_BASE_URL || undefined,
+    apiKey: config?.apiKey || process.env.OPENAI_API_KEY || 'not-needed',
+    baseURL: config?.baseUrl || process.env.OPENAI_BASE_URL || undefined,
   });
-  const model = process.env.OPENAI_MODEL || 'gpt-5.4';
+  const model = config?.model || process.env.OPENAI_MODEL || 'gpt-5.4';
 
   const completion = await client.chat.completions.create({
     model,
@@ -72,13 +82,13 @@ async function callOpenAICompatible(req: LLMRequest): Promise<string> {
   return text;
 }
 
-async function callAnthropic(req: LLMRequest): Promise<string> {
-  const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
-  const model = process.env.ANTHROPIC_MODEL || 'claude-opus-4-8';
+async function callAnthropic(req: LLMRequest, config?: LLMConfig): Promise<string> {
+  const client = new Anthropic({ apiKey: config?.apiKey || process.env.ANTHROPIC_API_KEY });
+  const model = config?.model || process.env.ANTHROPIC_MODEL || 'claude-opus-4-8';
 
   const message = await client.messages.create({
     model,
-    max_tokens: MAX_TOKENS,
+    max_tokens: config?.maxTokens || MAX_TOKENS,
     // temperature: TEMPERATURE,
     system: req.system,
     messages: [{ role: 'user', content: req.user }],
@@ -92,8 +102,8 @@ async function callAnthropic(req: LLMRequest): Promise<string> {
   return text;
 }
 
-async function callOllama(req: LLMRequest): Promise<string> {
-  const base = process.env.OLLAMA_URL || 'http://localhost:11434';
+async function callOllama(req: LLMRequest, config?: LLMConfig): Promise<string> {
+  const base = config?.baseUrl || process.env.OLLAMA_URL || 'http://localhost:11434';
   // Accept either a bare host or a full /api/* URL for backwards compatibility.
   const url = base.includes('/api/') ? base.replace(/\/api\/.*/, '/api/chat') : `${base.replace(/\/$/, '')}/api/chat`;
 
@@ -101,9 +111,9 @@ async function callOllama(req: LLMRequest): Promise<string> {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      model: process.env.OLLAMA_MODEL || 'codellama',
+      model: config?.model || process.env.OLLAMA_MODEL || 'codellama',
       stream: false,
-      options: { temperature: TEMPERATURE },
+      options: { temperature: config?.temperature ?? TEMPERATURE },
       messages: [
         { role: 'system', content: req.system },
         { role: 'user', content: req.user },
@@ -148,13 +158,14 @@ export function extractJSON<T = any>(response: string): T | null {
 }
 
 /** Human-readable label of the active model, for stored review metadata. */
-export function activeModelLabel(): string {
-  switch (getProvider()) {
+export function activeModelLabel(config?: LLMConfig): string {
+  if (config?.model) return config.model;
+  switch (getProvider(config)) {
     case 'anthropic':
       return process.env.ANTHROPIC_MODEL || 'claude-opus-4-8';
     case 'ollama':
       return process.env.OLLAMA_MODEL || 'codellama';
     default:
-      return process.env.OPENAI_MODEL || 'gpt-4o';
+      return process.env.OPENAI_MODEL || 'gpt-5.4';
   }
 }

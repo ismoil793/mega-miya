@@ -11,6 +11,7 @@
  */
 import { generateAICodeReview } from './ai-review';
 import { postReview } from './github-review';
+import * as llm from './llm';
 
 jest.mock('./llm', () => {
   const actual = jest.requireActual('./llm');
@@ -21,7 +22,7 @@ jest.mock('./llm', () => {
   };
 });
 
-const { callLLM } = require('./llm');
+const callLLM = jest.mocked(llm.callLLM);
 
 const PATCH = [
   '@@ -1,3 +1,7 @@',
@@ -108,7 +109,7 @@ describe('review pipeline (LLM + GitHub mocked)', () => {
       // existing review comments (none) and existing issue comments (one summary)
       if (url.includes('/pulls/7/comments')) return jsonResponse([]);
       if (url.includes('/issues/7/comments')) {
-        return jsonResponse([{ id: 555, body: 'earlier\n<!-- mega-miyya-summary -->\nold' }]);
+        return jsonResponse([{ id: 555, body: 'earlier\n<!-- mega-miya-summary -->\nold' }]);
       }
       return jsonResponse({ ok: true });
     });
@@ -139,7 +140,7 @@ describe('review pipeline (LLM + GitHub mocked)', () => {
     const patch = calls.find((c) => c.url.includes('/issues/comments/555') && c.method === 'PATCH');
     expect(patch).toBeDefined();
     expect(patch!.body.body).toContain('Overall score: 62/100');
-    expect(patch!.body.body).toContain('<!-- mega-miyya-summary -->');
+    expect(patch!.body.body).toContain('<!-- mega-miya-summary -->');
   });
 });
 

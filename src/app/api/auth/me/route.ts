@@ -1,29 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { connectDB } from '@/lib/database';
-import { UserModel } from '@/models/User';
+import { getAuthenticatedUser } from '@/lib/auth';
+
+export const dynamic = 'force-dynamic';
 
 export async function GET(request: NextRequest) {
   try {
-    // Get session token from cookie
-    const sessionToken = request.cookies.get('session_token')?.value;
-    
-    if (!sessionToken) {
-      return NextResponse.json({ user: null });
-    }
-
-    // Decode session token (simple base64 for now)
-    const decoded = Buffer.from(sessionToken, 'base64').toString();
-    const [githubId] = decoded.split(':');
-
-    if (!githubId) {
-      return NextResponse.json({ user: null });
-    }
-
-    // Connect to database
-    await connectDB();
-
-    // Find user by GitHub ID
-    const user = await UserModel.findOne({ githubId: parseInt(githubId) }).select('-accessToken');
+    const user = await getAuthenticatedUser(request);
     
     if (!user) {
       return NextResponse.json({ user: null });
@@ -47,4 +29,4 @@ export async function GET(request: NextRequest) {
     console.error('Error fetching user:', error);
     return NextResponse.json({ user: null });
   }
-} 
+}

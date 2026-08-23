@@ -2,7 +2,49 @@
 
 Status: planning document  
 Created: 2026-08-21  
+Last updated: 2026-08-23
 Purpose: preserve decisions and implementation context for the next working session.
+
+## Progress log
+
+### 2026-08-23: authentication hardening started
+
+- Replaced forgeable base64 identity cookies with random, opaque sessions whose SHA-256 hashes and expirations are stored server-side.
+- Added real server-side logout/revocation and a MongoDB TTL index for expired sessions.
+- Replaced weak OAuth state generation with cryptographic randomness and added one-time state validation in the callback.
+- Added same-origin checks to state-changing dashboard endpoints.
+- Added authentication and current-user repository scoping to review APIs.
+- Added server-side validation that selected repositories are repositories the current OAuth user administers.
+- Protected installation-status and cache/debug routes; cache controls are unavailable in production.
+- Added a two-megabyte webhook payload limit and made a missing webhook secret fail closed in production.
+
+Important transition note: existing base64 sessions are intentionally invalid after this change, so users must connect again. The follow-up Option A migration below removes the repository picker’s dependency on the broad OAuth `repo` token.
+
+### 2026-08-23: Option A repository-access migration
+
+- Reduced OAuth authorization to identity and organization membership scopes.
+- Stopped persisting new OAuth access tokens and marked the old token field as a legacy migration field.
+- Added authorized GitHub account memberships to users; organization administration is recorded from GitHub during login.
+- Added persistent GitHub App installation and installed-repository records.
+- Added verified webhook handling for installation creation, deletion, suspension, restoration, and repository additions/removals.
+- Changed the repository picker to show only repositories delivered through GitHub App installation events.
+- Bound PR review eligibility to the installation ID and repository contained in the signed webhook.
+- Added an installation link to the repository picker empty state.
+
+Migration requirement: users must reconnect through OAuth to populate identity/account membership data. Existing GitHub App installations must emit a fresh installation event (reinstall or redeliver the installation delivery) so their repositories are imported.
+
+### 2026-08-23: first hosted BYOK implementation
+
+- Added one active LLM credential per administrated GitHub user/organization account.
+- Added OpenAI and Anthropic provider/model selection in the dashboard.
+- Added AES-256-GCM authenticated encryption with a unique nonce for each saved key.
+- The encryption master key is supplied separately through `AI_API_CREDENTIAL_ENCRYPTION_KEY` and is never stored in MongoDB.
+- Credential APIs never return ciphertext or the original API key; the UI receives only provider, model, and the last four characters.
+- Webhook jobs resolve the credential from the verified GitHub installation account and decrypt it only immediately before the provider request.
+- `REQUIRE_BYOK=true` prevents fallback to a deployment-owned LLM key when customer configuration is missing or broken.
+- Arbitrary OpenAI-compatible and Ollama endpoints remain disabled in hosted BYOK because URL support requires the planned SSRF controls.
+
+Production follow-up: replace the environment-held encryption master key with envelope encryption backed by the selected cloud KMS and add provider connection testing before public onboarding.
 
 ## Product decision
 
@@ -19,13 +61,15 @@ The intended hosted onboarding flow is:
 
 Self-hosted deployments may continue using environment variables and local/OpenAI-compatible endpoints.
 
+Authentication decision (2026-08-23): retain two GitHub registrations. The OAuth App is identity-only (`read:user`, `user:email`, and `read:org`). The Mega-Miyya GitHub App exclusively owns repository access, webhook delivery, and review posting. OAuth repository tokens must not be stored.
+
 ## Current architecture
 
 - `src/lib/llm.ts` reads one global provider configuration from process environment variables.
 - Supported providers are OpenAI, OpenAI-compatible APIs, Anthropic, and Ollama.
 - Webhook processing does not currently resolve an organization/repository-specific provider configuration.
-- The user model currently stores a GitHub OAuth `accessToken` in plaintext.
-- Repository selection is attached directly to a user rather than an organization or GitHub App installation.
+- New OAuth logins no longer persist a GitHub token; the optional user token field remains temporarily only for legacy-record cleanup.
+- GitHub App installations and their repository grants are persisted, while review enablement is still attached directly to a user pending the organization model.
 - Review records are not currently tenant-isolated at the API layer.
 
 This architecture is acceptable for local development, but it is not safe for unrelated hosted customers.
@@ -249,4 +293,3 @@ These are required before allowing arbitrary companies to connect private reposi
 - Per-user LLM credentials when an organization-level credential is sufficient.
 - Returning stored credentials to the UI.
 - Building billing before authentication, tenant isolation, and secret storage are safe.
-

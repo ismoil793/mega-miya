@@ -2,21 +2,28 @@ import { NextRequest, NextResponse } from 'next/server';
 import { connectDB } from '@/lib/database';
 import { CodeReviewModel } from '@/models/CodeReview';
 import { ApiResponse, PaginatedResponse } from '@/types';
+import { getAuthenticatedUser, hasValidRequestOrigin } from '@/lib/auth';
 
 export async function GET(request: NextRequest) {
   try {
+    const user = await getAuthenticatedUser(request);
+    if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+
     await connectDB();
 
     const { searchParams } = new URL(request.url);
     const page = parseInt(searchParams.get('page') || '1');
-    const limit = parseInt(searchParams.get('limit') || '10');
+    const limit = Math.min(Math.max(parseInt(searchParams.get('limit') || '10'), 1), 100);
     const repository = searchParams.get('repository');
     const status = searchParams.get('status');
 
     // Build query
-    const query: any = {};
+    const query: any = { repositoryName: { $in: user.repositories } };
     if (repository) {
-      query.repositoryName = { $regex: repository, $options: 'i' };
+      if (!user.repositories.includes(repository)) {
+        return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+      }
+      query.repositoryName = repository;
     }
     if (status) {
       query.status = status;
@@ -56,6 +63,12 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
+    if (!hasValidRequestOrigin(request)) {
+      return NextResponse.json({ error: 'Invalid request origin' }, { status: 403 });
+    }
+    const user = await getAuthenticatedUser(request);
+    if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+
     const body = await request.json();
     const { pullRequestId, repositoryId, repositoryName } = body;
 
@@ -64,6 +77,10 @@ export async function POST(request: NextRequest) {
         { error: 'Missing required fields' },
         { status: 400 }
       );
+    }
+
+    if (!user.repositories.includes(repositoryName)) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
     await connectDB();
@@ -105,4 +122,4 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     );
   }
-} 
+}

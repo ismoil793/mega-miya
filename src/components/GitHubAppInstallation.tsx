@@ -72,7 +72,7 @@ export default function GitHubAppInstallation({ repositories, onInstallationComp
   }
 
   return (
-    <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+    <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6" aria-busy={loading}>
       <div className="flex items-center justify-between mb-4">
         <div>
           <h3 className="text-lg font-semibold text-gray-900">GitHub App Installation</h3>
@@ -146,7 +146,7 @@ export default function GitHubAppInstallation({ repositories, onInstallationComp
               <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
                 <h4 className="font-medium text-blue-900 mb-2">Why install the GitHub App?</h4>
                 <ul className="text-sm text-blue-800 space-y-1">
-                  <li>• AI review comments appear under the bot's name</li>
+                  <li>• AI review comments appear under the bot&apos;s name</li>
                   <li>• Clear separation between human and AI comments</li>
                   <li>• Professional appearance for automated reviews</li>
                   <li>• Better user experience for your team</li>
@@ -178,10 +178,10 @@ export default function GitHubAppInstallation({ repositories, onInstallationComp
               <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
                 <h4 className="font-medium text-yellow-900 mb-2">Installation Instructions:</h4>
                 <ol className="text-sm text-yellow-800 space-y-1">
-                  <li>1. Click "Install App" for each repository above</li>
-                  <li>2. You'll be redirected to GitHub's installation page</li>
-                  <li>3. Choose "All repositories" or "Only select repositories"</li>
-                  <li>4. Click "Install" to complete the setup</li>
+                  <li>1. Click &quot;Install App&quot; for each repository above</li>
+                  <li>2. You&apos;ll be redirected to GitHub&apos;s installation page</li>
+                  <li>3. Choose &quot;All repositories&quot; or &quot;Only select repositories&quot;</li>
+                  <li>4. Click &quot;Install&quot; to complete the setup</li>
                   <li>5. Return here and refresh to see the updated status</li>
                 </ol>
               </div>
@@ -210,4 +210,4 @@ export default function GitHubAppInstallation({ repositories, onInstallationComp
       )}
     </div>
   );
-} 
+}

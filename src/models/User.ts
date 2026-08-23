@@ -10,7 +10,13 @@ export interface UserData {
   avatarUrl: string;
   repositories: string[]; // repository full names
   settings: UserSettings;
-  accessToken?: string; // GitHub access token
+  authorizedAccounts: Array<{
+    githubAccountId: number;
+    login: string;
+    type: 'User' | 'Organization';
+    role: 'owner' | 'member';
+  }>;
+  accessToken?: string; // Legacy field; removed after users reconnect.
   createdAt: Date;
   updatedAt: Date;
 }
@@ -27,6 +33,13 @@ const UserSettingsSchema = new Schema<UserSettings>({
   },
 });
 
+const AuthorizedAccountSchema = new Schema({
+  githubAccountId: { type: Number, required: true },
+  login: { type: String, required: true },
+  type: { type: String, enum: ['User', 'Organization'], required: true },
+  role: { type: String, enum: ['owner', 'member'], required: true },
+}, { _id: false });
+
 const UserSchema = new Schema<UserDocument>({
   githubId: { type: Number, required: true, unique: true },
   githubUsername: { type: String, required: true },
@@ -35,7 +48,8 @@ const UserSchema = new Schema<UserDocument>({
   avatarUrl: { type: String, required: true },
   repositories: [{ type: String }],
   settings: { type: UserSettingsSchema, default: () => ({}) },
-  accessToken: { type: String }, // GitHub access token
+  authorizedAccounts: { type: [AuthorizedAccountSchema], default: [] },
+  accessToken: { type: String, select: false }, // Temporary legacy migration field.
 }, {
   timestamps: true,
 });
@@ -43,5 +57,6 @@ const UserSchema = new Schema<UserDocument>({
 // Indexes for better query performance
 UserSchema.index({ githubUsername: 1 });
 UserSchema.index({ repositories: 1 });
+UserSchema.index({ 'authorizedAccounts.githubAccountId': 1 });
 
-export const UserModel = mongoose.models.User || mongoose.model<UserDocument>('User', UserSchema); 
+export const UserModel = mongoose.models.User || mongoose.model<UserDocument>('User', UserSchema);

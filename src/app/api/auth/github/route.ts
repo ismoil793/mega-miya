@@ -1,11 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { randomBytes } from 'crypto';
+import { OAUTH_STATE_COOKIE } from '@/lib/auth';
 
-export async function GET(request: NextRequest) {
+export async function GET(_request: NextRequest) {
   try {
     const clientId = process.env.GITHUB_CLIENT_ID;
     const redirectUri = `${process.env.NEXTAUTH_URL}/api/auth/callback`;
     
-    if (!clientId) {
+    if (!clientId || !process.env.NEXTAUTH_URL) {
       return NextResponse.json(
         { error: 'GitHub OAuth not configured' },
         { status: 500 }
@@ -13,18 +15,19 @@ export async function GET(request: NextRequest) {
     }
 
     // Generate a random state parameter for security
-    const state = Math.random().toString(36).substring(2, 15);
+    const state = randomBytes(32).toString('base64url');
     
     // Store state in a cookie for verification
     const response = NextResponse.redirect(
-      `https://github.com/login/oauth/authorize?client_id=${clientId}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=repo&state=${state}`
+      `https://github.com/login/oauth/authorize?client_id=${clientId}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=${encodeURIComponent('read:user user:email read:org')}&state=${state}`
     );
     
     // Set state cookie
-    response.cookies.set('oauth_state', state, {
+    response.cookies.set(OAUTH_STATE_COOKIE, state, {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
       sameSite: 'lax',
+      path: '/',
       maxAge: 60 * 10, // 10 minutes
     });
 
@@ -36,4 +39,4 @@ export async function GET(request: NextRequest) {
       { status: 500 }
     );
   }
-} 
+}

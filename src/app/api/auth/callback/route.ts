@@ -1,12 +1,22 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { connectDB } from '@/lib/database';
 import { UserModel } from '@/models/User';
+import {
+  createSession,
+  OAUTH_STATE_COOKIE,
+  setSessionCookie,
+} from '@/lib/auth';
+import { secureEqual } from '@/lib/auth-crypto';
+
+export const dynamic = 'force-dynamic';
 
 export async function GET(request: NextRequest) {
   try {
     const searchParams = request.nextUrl.searchParams;
     const code = searchParams.get('code');
     const error = searchParams.get('error');
+    const returnedState = searchParams.get('state');
+    const expectedState = request.cookies.get(OAUTH_STATE_COOKIE)?.value;
 
     if (error) {
       console.error('OAuth error:', error);
@@ -15,6 +25,13 @@ export async function GET(request: NextRequest) {
 
     if (!code) {
       return NextResponse.redirect(new URL('/?error=no_code', request.url));
+    }
+
+    if (!returnedState || !expectedState || !secureEqual(returnedState, expectedState)) {
+      console.error('OAuth state validation failed');
+      const response = NextResponse.redirect(new URL('/?error=invalid_state', request.url));
+      response.cookies.delete(OAUTH_STATE_COOKIE);
+      return response;
     }
 
     // Exchange code for access token
@@ -55,6 +72,32 @@ export async function GET(request: NextRequest) {
       return NextResponse.redirect(new URL('/?error=github_api_failed', request.url));
     }
 
+    const membershipsResponse = await fetch('https://api.github.com/user/memberships/orgs?state=active&per_page=100', {
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        Accept: 'application/vnd.github+json',
+      },
+    });
+    if (!membershipsResponse.ok) {
+      console.error('GitHub organization membership request failed:', membershipsResponse.status);
+      return NextResponse.redirect(new URL('/?error=github_memberships_failed', request.url));
+    }
+    const memberships = await membershipsResponse.json();
+    const authorizedAccounts = [
+      {
+        githubAccountId: userData.id,
+        login: userData.login,
+        type: 'User' as const,
+        role: 'owner' as const,
+      },
+      ...memberships.map((membership: any) => ({
+        githubAccountId: membership.organization.id,
+        login: membership.organization.login,
+        type: 'Organization' as const,
+        role: membership.role === 'admin' ? 'owner' as const : 'member' as const,
+      })),
+    ];
+
     // Connect to database
     await connectDB();
 
@@ -69,7 +112,7 @@ export async function GET(request: NextRequest) {
         email: userData.email,
         name: userData.name,
         avatarUrl: userData.avatar_url,
-        accessToken: accessToken,
+        authorizedAccounts,
         repositories: [],
         settings: {
           aiProvider: process.env.DEFAULT_AI_PROVIDER || 'openai',
@@ -78,18 +121,19 @@ export async function GET(request: NextRequest) {
         },
       });
     } else {
-      // Update existing user's access token
-      user.accessToken = accessToken;
       user.githubUsername = userData.login;
       user.email = userData.email;
       user.name = userData.name;
       user.avatarUrl = userData.avatar_url;
+      user.authorizedAccounts = authorizedAccounts;
     }
 
-    await user.save();
+    user.accessToken = undefined;
 
-    // Create session token (simple base64 encoding for now)
-    const sessionToken = Buffer.from(`${user.githubId}:${Date.now()}`).toString('base64');
+    await user.save();
+    await UserModel.updateOne({ _id: user._id }, { $unset: { accessToken: 1 } });
+
+    const sessionToken = await createSession(user._id.toString());
 
     // Redirect to dashboard with success status
     const redirectUrl = new URL('/', request.url);
@@ -98,12 +142,8 @@ export async function GET(request: NextRequest) {
     const response = NextResponse.redirect(redirectUrl);
     
     // Set session cookie
-    response.cookies.set('session_token', sessionToken, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'lax',
-      maxAge: 60 * 60 * 24 * 7, // 7 days
-    });
+    setSessionCookie(response, sessionToken);
+    response.cookies.delete(OAUTH_STATE_COOKIE);
 
     return response;
 
@@ -111,4 +151,4 @@ export async function GET(request: NextRequest) {
     console.error('OAuth callback error:', error);
     return NextResponse.redirect(new URL('/?error=server_error', request.url));
   }
-} 
+}

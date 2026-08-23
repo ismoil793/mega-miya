@@ -27,6 +27,7 @@ export default function RepositoryModal({ isOpen, onClose, onSave }: RepositoryM
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
+  const [githubAppInstallUrl, setGitHubAppInstallUrl] = useState('https://github.com/apps/mega-miyya/installations/new');
 
   useEffect(() => {
     if (isOpen) {
@@ -45,6 +46,7 @@ export default function RepositoryModal({ isOpen, onClose, onSave }: RepositoryM
       if (response.ok) {
         setRepositories(data.repositories);
         setSelectedRepos(data.selectedRepositories);
+        if (data.githubAppInstallUrl) setGitHubAppInstallUrl(data.githubAppInstallUrl);
       } else {
         setError(data.error || 'Failed to fetch repositories');
       }
@@ -199,6 +201,16 @@ export default function RepositoryModal({ isOpen, onClose, onSave }: RepositoryM
                         : 'You need admin access to repositories to enable AI reviews'
                       }
                     </p>
+                    {!searchTerm && (
+                      <a
+                        href={githubAppInstallUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="btn-primary inline-block mt-4"
+                      >
+                        Install Mega-Miyya GitHub App
+                      </a>
+                    )}
                   </div>
                 ) : (
                   filteredRepositories.map((repo) => (
@@ -291,4 +303,4 @@ export default function RepositoryModal({ isOpen, onClose, onSave }: RepositoryM
       </div>
     </div>
   );
-} 
+}

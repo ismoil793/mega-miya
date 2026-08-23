@@ -1,42 +1,33 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { githubAppService } from '@/lib/github-app';
+import { getAuthenticatedUser } from '@/lib/auth';
+import { GitHubInstallationModel } from '@/models/GitHubInstallation';
 
 export async function POST(request: NextRequest) {
   try {
+    const user = await getAuthenticatedUser(request);
+    if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+
     const { repositories } = await request.json();
 
     if (!Array.isArray(repositories)) {
       return NextResponse.json({ error: 'Invalid repositories data' }, { status: 400 });
     }
-
-    // Check if GitHub App is configured
-    if (!githubAppService.isConfigured()) {
-      return NextResponse.json({ 
-        installations: {},
-        message: 'GitHub App not configured' 
-      });
+    if (repositories.some((repository) => typeof repository !== 'string' || !user.repositories.includes(repository))) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
-    const installations: Record<string, boolean> = {};
-
-    // Check each repository for GitHub App installation
-    for (const repository of repositories) {
-      try {
-        const [owner, repo] = repository.split('/');
-        
-        // Try to get installation ID for this repository
-        await githubAppService.getInstallationIdForRepo(owner, repo);
-        installations[repository] = true; // App is installed
-      } catch (error) {
-        // If we get a 404, the app is not installed
-        if (error instanceof Error && error.message.includes('404')) {
-          installations[repository] = false; // App is not installed
-        } else {
-          // For other errors, assume not installed
-          installations[repository] = false;
-        }
-      }
-    }
+    const accountIds = user.authorizedAccounts.map((account) => account.githubAccountId);
+    const records = await GitHubInstallationModel.find({
+      accountId: { $in: accountIds },
+      status: 'active',
+      'repositories.fullName': { $in: repositories },
+    }).lean();
+    const installedNames = new Set(records.flatMap((record) =>
+      record.repositories.map((repo: { fullName: string }) => repo.fullName),
+    ));
+    const installations = Object.fromEntries(
+      repositories.map((repository) => [repository, installedNames.has(repository)]),
+    );
 
     return NextResponse.json({ 
       installations,
@@ -50,4 +41,4 @@ export async function POST(request: NextRequest) {
       error: 'Failed to check installation status' 
     }, { status: 500 });
   }
-} 
+}

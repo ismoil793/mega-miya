@@ -5,6 +5,9 @@ import { CodeReviewModel } from '@/models/CodeReview';
 import { generateAICodeReview, ReviewFile } from '@/lib/ai-review';
 import { postReview } from '@/lib/github-review';
 import { githubAppService } from '@/lib/github-app';
+import { GitHubInstallationModel } from '@/models/GitHubInstallation';
+import crypto from 'crypto';
+import { resolveAccountLLMConfig } from '@/lib/account-llm-config';
 
 /** When true, review every repo the app is installed on (no DB opt-in needed). */
 function reviewAllRepos(): boolean {
@@ -13,7 +16,14 @@ function reviewAllRepos(): boolean {
 
 export async function POST(request: NextRequest) {
   try {
+    const contentLength = Number(request.headers.get('content-length') || '0');
+    if (contentLength > 2_000_000) {
+      return NextResponse.json({ error: 'Payload too large' }, { status: 413 });
+    }
     const body = await request.text();
+    if (Buffer.byteLength(body, 'utf8') > 2_000_000) {
+      return NextResponse.json({ error: 'Payload too large' }, { status: 413 });
+    }
     const signature = request.headers.get('x-hub-signature-256');
 
     if (!verifyWebhookSignature(body, signature)) {
@@ -26,17 +36,14 @@ export async function POST(request: NextRequest) {
 
     console.log(`Received GitHub webhook: ${event} for ${payload.repository?.full_name}`);
 
-    // Handle installation events (app installed/uninstalled)
     if (event === 'installation') {
-      if (payload.action === 'deleted') {
-        const repositories = payload.repositories || [];
-        for (const repo of repositories) {
-          const [owner] = repo.full_name.split('/');
-          githubAppService.clearInstallationCache(owner);
-        }
-        console.log(`🗑️ Cleared installation cache for installation ${payload.installation?.id}`);
-      }
+      await processInstallationEvent(payload);
       return NextResponse.json({ message: 'Installation event processed' });
+    }
+
+    if (event === 'installation_repositories') {
+      await processInstallationRepositoriesEvent(payload);
+      return NextResponse.json({ message: 'Installation repositories event processed' });
     }
 
     if (event !== 'pull_request') {
@@ -54,7 +61,7 @@ export async function POST(request: NextRequest) {
 
     // Decide whether this repo should be reviewed.
     if (!reviewAllRepos()) {
-      const enabled = await isRepoEnabled(repository);
+      const enabled = await isRepoEnabled(repository, installationId);
       if (!enabled) {
         console.log(`Repository ${repository} not enabled for AI reviews`);
         return NextResponse.json({ message: 'Repository not enabled' });
@@ -62,7 +69,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Best-effort review record (never block the review if the DB is unavailable).
-    const reviewId = await createOrUpdateReviewRecord(payload, action);
+    const reviewId = await createOrUpdateReviewRecord(payload);
 
     // Kick off the review without blocking the webhook response.
     processAICodeReview(reviewId, repository, pullRequest, installationId).catch((err) =>
@@ -76,10 +83,84 @@ export async function POST(request: NextRequest) {
   }
 }
 
+function normalizeInstallationRepository(repository: any) {
+  return {
+    githubRepositoryId: repository.id,
+    name: repository.name,
+    fullName: repository.full_name,
+    private: Boolean(repository.private),
+  };
+}
+
+async function processInstallationEvent(payload: any): Promise<void> {
+  await connectDB();
+  const installation = payload.installation;
+  if (!installation?.id || !installation.account?.id) {
+    throw new Error('Installation payload is missing installation or account identity');
+  }
+
+  githubAppService.clearInstallationCache(installation.account.login);
+
+  if (payload.action === 'deleted') {
+    await GitHubInstallationModel.deleteOne({ installationId: installation.id });
+    return;
+  }
+
+  const update: Record<string, any> = {
+    installationId: installation.id,
+    accountId: installation.account.id,
+    accountLogin: installation.account.login,
+    accountType: installation.account.type,
+    status: payload.action === 'suspend' ? 'suspended' : 'active',
+  };
+  if (Array.isArray(payload.repositories)) {
+    update.repositories = payload.repositories.map(normalizeInstallationRepository);
+  }
+
+  await GitHubInstallationModel.findOneAndUpdate(
+    { installationId: installation.id },
+    { $set: update },
+    { upsert: true, new: true },
+  );
+}
+
+async function processInstallationRepositoriesEvent(payload: any): Promise<void> {
+  await connectDB();
+  const installationId = payload.installation?.id;
+  if (!installationId) throw new Error('Installation repositories payload is missing installation id');
+
+  const added = Array.isArray(payload.repositories_added)
+    ? payload.repositories_added.map(normalizeInstallationRepository)
+    : [];
+  const removedIds = Array.isArray(payload.repositories_removed)
+    ? payload.repositories_removed.map((repository: any) => repository.id)
+    : [];
+
+  if (removedIds.length > 0) {
+    await GitHubInstallationModel.updateOne(
+      { installationId },
+      { $pull: { repositories: { githubRepositoryId: { $in: removedIds } } } },
+    );
+  }
+  for (const repository of added) {
+    await GitHubInstallationModel.updateOne(
+      { installationId, 'repositories.githubRepositoryId': { $ne: repository.githubRepositoryId } },
+      { $push: { repositories: repository } },
+    );
+  }
+}
+
 /** Check the DB opt-in list. Returns false (not fatal) if the DB is unreachable. */
-async function isRepoEnabled(repository: string): Promise<boolean> {
+async function isRepoEnabled(repository: string, installationId?: number): Promise<boolean> {
   try {
     await connectDB();
+    if (!installationId) return false;
+    const installation = await GitHubInstallationModel.exists({
+      installationId,
+      status: 'active',
+      'repositories.fullName': repository,
+    });
+    if (!installation) return false;
     const user = await UserModel.findOne({ repositories: repository });
     return !!user;
   } catch (err) {
@@ -88,7 +169,7 @@ async function isRepoEnabled(repository: string): Promise<boolean> {
   }
 }
 
-async function createOrUpdateReviewRecord(payload: any, action: string): Promise<string | null> {
+async function createOrUpdateReviewRecord(payload: any): Promise<string | null> {
   try {
     await connectDB();
     const repository = payload.repository.full_name;
@@ -128,6 +209,7 @@ async function processAICodeReview(
     console.log(`Starting AI review for PR #${pullRequest.number} in ${repository}`);
 
     const installationToken = await resolveInstallationToken(repository, installationId);
+    const llmConfig = await resolveAccountLLMConfig(installationId);
 
     // Fetch the PR's changed files (includes the unified-diff patch per file).
     const files = await fetchAllPullRequestFiles(repository, pullRequest.number, installationToken);
@@ -148,7 +230,7 @@ async function processAICodeReview(
         number: pullRequest.number,
       },
       files: reviewFiles,
-    });
+    }, llmConfig);
 
     await updateReviewStatus(reviewId, 'completed', review.result, review.model);
 
@@ -224,6 +306,11 @@ async function updateReviewStatus(reviewId: string | null, status: string, revie
 function verifyWebhookSignature(body: string, signature: string | null): boolean {
   const secret = process.env.GITHUB_WEBHOOK_SECRET;
 
+  if (!secret && process.env.NODE_ENV === 'production') {
+    console.error('GITHUB_WEBHOOK_SECRET is required in production.');
+    return false;
+  }
+
   if (!secret) {
     console.warn(
       '⚠️  GITHUB_WEBHOOK_SECRET is not set — webhook signatures are NOT being verified. Set it in production.',
@@ -236,7 +323,6 @@ function verifyWebhookSignature(body: string, signature: string | null): boolean
     return false;
   }
 
-  const crypto = require('crypto');
   const expected = `sha256=${crypto.createHmac('sha256', secret).update(body).digest('hex')}`;
 
   const sigBuf = Buffer.from(signature);
