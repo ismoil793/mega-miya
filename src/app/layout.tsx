@@ -5,10 +5,10 @@ import './globals.css';
 const inter = Inter({ subsets: ['latin'] });
 
 export const metadata: Metadata = {
-  title: 'Mega Miyya - AI Code Review Tool',
+  title: 'Mega Miya - AI Code Review Tool',
   description: 'AI-powered GitHub code review tool that provides intelligent feedback on pull requests',
   keywords: ['code review', 'AI', 'GitHub', 'pull request', 'software development'],
-  authors: [{ name: 'Mega Miyya Team' }],
+  authors: [{ name: 'Ismoil', url: 'https://github.com/ismoil793' }],
 };
 
 export const viewport: Viewport = {
@@ -30,4 +30,4 @@ export default function RootLayout({
       </body>
     </html>
   );
-} 
+}

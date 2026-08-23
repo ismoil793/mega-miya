@@ -4,7 +4,7 @@ This guide will help you set up a GitHub App so that AI review comments are post
 
 ## 🎯 Why GitHub App?
 
-- **Bot Identity**: Comments appear under the bot's name (e.g., "mega-miyya-bot commented")
+- **Bot Identity**: Comments appear under the bot's name (e.g., "mega-miya-bot commented")
 - **Professional Appearance**: Clear separation between human and AI comments
 - **Better UX**: Users know immediately it's an automated review
 - **Dynamic Installation**: Automatically detects installation IDs for each repository
@@ -18,7 +18,7 @@ This guide will help you set up a GitHub App so that AI review comments are post
 3. Fill in the details:
 
 ```
-App name: mega-miyya
+App name: mega-miya
 Description: AI-powered code review bot
 Homepage URL: http://localhost:3004
 Webhook URL: http://localhost:3004/api/webhooks/github
@@ -64,7 +64,7 @@ Add these to your `.env.local`:
 # GitHub App Configuration (for bot comments)
 GITHUB_APP_ID=123456
 GITHUB_APP_PRIVATE_KEY="-----BEGIN RSA PRIVATE KEY-----\nMIIEpAIBAAKCAQEA...\n-----END RSA PRIVATE KEY-----"
-GITHUB_APP_NAME=mega-miyya
+GITHUB_APP_NAME=mega-miya
 # GITHUB_APP_INSTALLATION_ID is no longer needed - detected automatically!
 ```
 

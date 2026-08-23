@@ -1,5 +1,5 @@
 import mongoose, { Document, Schema } from 'mongoose';
-import { ReviewResult, ReviewMetadata, Suggestion, Issue } from '@/types';
+import { ReviewResult, ReviewMetadata, Suggestion, Issue, ReviewComment } from '@/types';
 
 // Define the base interface without id to avoid conflicts
 export interface CodeReviewData {
@@ -55,12 +55,30 @@ const IssueSchema = new Schema<Issue>({
   suggestedFix: { type: String },
 });
 
+const ReviewCommentSchema = new Schema<ReviewComment>({
+  file: { type: String, required: true },
+  line: { type: Number, required: true },
+  severity: {
+    type: String,
+    enum: ['low', 'medium', 'high', 'critical'],
+    required: true,
+  },
+  category: {
+    type: String,
+    enum: ['bug', 'security', 'performance', 'style', 'maintainability'],
+    required: true,
+  },
+  body: { type: String, required: true },
+  suggestion: { type: String },
+});
+
 const ReviewResultSchema = new Schema<ReviewResult>({
   summary: { type: String, required: true },
   score: { type: Number, required: true, min: 0, max: 100 },
   suggestions: [SuggestionSchema],
   issues: [IssueSchema],
   positiveAspects: [{ type: String }],
+  comments: [ReviewCommentSchema],
 });
 
 const ReviewMetadataSchema = new Schema<ReviewMetadata>({

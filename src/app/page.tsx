@@ -168,7 +168,7 @@ export default function Dashboard() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center py-6">
             <div>
-              <h1 className="text-3xl font-bold text-gray-900">Mega Miyya</h1>
+              <h1 className="text-3xl font-bold text-gray-900">Mega Miya</h1>
               <p className="text-gray-600">AI-Powered Code Review Tool</p>
             </div>
             <div className="flex items-center space-x-4">
@@ -448,6 +448,29 @@ export default function Dashboard() {
         </div>
       </main>
 
+      <footer className="border-t border-gray-200 bg-white">
+        <div className="max-w-7xl mx-auto px-4 py-6 text-center text-sm text-gray-600 sm:px-6 lg:px-8">
+          Mega Miya is licensed under the AGPL-3.0-or-later.{' '}
+          <a
+            href="https://github.com/ismoil793/mega-miya"
+            className="font-medium text-blue-600 hover:text-blue-800"
+            target="_blank"
+            rel="noreferrer"
+          >
+            View source code
+          </a>
+          {' '}· Copyright © 2026{' '}
+          <a
+            href="https://github.com/ismoil793"
+            className="font-medium text-blue-600 hover:text-blue-800"
+            target="_blank"
+            rel="noreferrer"
+          >
+            Ismoil
+          </a>
+        </div>
+      </footer>
+
       {/* Repository Modal */}
       <RepositoryModal
         isOpen={showRepositoryModal}
@@ -456,4 +479,4 @@ export default function Dashboard() {
       />
     </div>
   );
-} 
+}

@@ -24,7 +24,7 @@ export default function GitHubAppInstallation({ repositories, onInstallationComp
   const [loading, setLoading] = useState(false);
   const [installationStatus, setInstallationStatus] = useState<Record<string, boolean>>({});
   const [showInstallationModal, setShowInstallationModal] = useState(false);
-  const [appName, setAppName] = useState('mega-miyya');
+  const [appName, setAppName] = useState('mega-miya');
 
   // Get GitHub App installation URL
   const getInstallationUrl = (repository: string) => {
@@ -49,7 +49,7 @@ export default function GitHubAppInstallation({ repositories, onInstallationComp
       if (response.ok) {
         const data = await response.json();
         setInstallationStatus(data.installations);
-        setAppName(data.appName || 'mega-miyya');
+        setAppName(data.appName || 'mega-miya');
       }
     } catch (error) {
       console.error('Failed to check installation status:', error);

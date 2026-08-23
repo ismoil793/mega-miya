@@ -1,33 +1,33 @@
-# Mega Miyya (Mega Mind) is an open source AI-Powered Code Reviewing Tool
+# Mega Miya (Mega Mind) is an open source AI-Powered Code Reviewing Tool
 
-<img width="250" height="250" alt="mega-miyya-2" src="https://github.com/user-attachments/assets/45cfa5c4-73b9-4a58-945e-6dcff69da75d" />
+<img width="250" height="250" alt="mega-miya-2" src="https://github.com/user-attachments/assets/45cfa5c4-73b9-4a58-945e-6dcff69da75d" />
 
 An intelligent code review tool that automatically analyzes pull requests using AI and provides detailed feedback directly on GitHub, similar to CodeRabbit.
 
 ## Features
 
-- 🤖 **AI-Powered Reviews**: Automatic code analysis using OpenAI, Ollama, or Hugging Face
-- 🔗 **GitHub Integration**: Seamless OAuth connection and webhook setup
-- 📊 **Repository Management**: Select which repositories to enable AI reviews for
-- 💬 **Direct Comments**: AI reviews posted directly on GitHub PRs
-- 📈 **Dashboard Analytics**: Track review history and performance
-- 🔧 **Multiple AI Providers**: Support for OpenAI, local Ollama models, and Hugging Face
+- 💬 **Line-by-line inline comments**: Anchored to the exact changed lines via the GitHub Reviews API, with applyable ```suggestion``` fixes — just like CodeRabbit / Cursor Bugbot.
+- 📝 **Upserted summary comment**: One overview comment per PR (score + findings) that's edited in place on each push instead of spamming new comments.
+- 🧠 **Bring your own LLM**: Native Claude (Anthropic), any OpenAI-compatible endpoint (OpenAI, vLLM, OpenRouter, Together, Groq, LM Studio, self-hosted), or local Ollama.
+- 🏢 **Self-host for any company**: Run it on your own server, point it at your LLM, install the GitHub App — with `REVIEW_ALL_REPOS=true` it reviews every installed repo, no per-repo setup.
+- 🎯 **Diff-aware, low-noise**: The model reviews only changed lines, validated against the diff so comments never land on the wrong line; tunable severity floor and size caps.
+- 📈 **Dashboard & history**: Optional MongoDB-backed dashboard to track reviews (the bot works without it too).
 
 ## Tech Stack
 
 - **Frontend**: Next.js 14, TypeScript, Tailwind CSS
 - **Backend**: Next.js API Routes
-- **Database**: MongoDB Atlas
-- **AI**: OpenAI GPT-4, Ollama (local), Hugging Face
-- **Authentication**: GitHub OAuth
-- **Deployment**: Vercel-ready
+- **Database**: MongoDB (optional — dashboard & history)
+- **AI**: Anthropic Claude, OpenAI / OpenAI-compatible, Ollama
+- **GitHub**: GitHub App (reviews) + OAuth (dashboard)
+- **Deployment**: Vercel-ready or any Node host
 
 ## 🚀 Quick Start
 
 1. **Clone and install dependencies:**
    ```bash
    git clone <repository-url>
-   cd mega-miyya
+   cd mega-miya
    npm install
    ```
 
@@ -48,8 +48,9 @@ An intelligent code review tool that automatically analyzes pull requests using 
    - This makes AI reviews appear under the bot's name instead of your personal account
 
 5. **Set up AI provider:**
-   - Choose your preferred AI provider (OpenAI, Ollama, or Hugging Face)
-   - Follow the setup instructions in the [AI Provider Configuration](#ai-provider-configuration) section
+   - Choose your provider with `AI_PROVIDER` (`anthropic`, `openai`, `openai-compatible`, or `ollama`)
+   - Set the matching API key/model in `.env.local` (see the [Environment Variables](#environment-variables) table)
+   - For a self-hosted or third-party OpenAI-compatible gateway, set `AI_PROVIDER=openai-compatible` and `OPENAI_BASE_URL`
 
 6. **Start the development server:**
    ```bash
@@ -91,11 +92,19 @@ An intelligent code review tool that automatically analyzes pull requests using 
 
 ## How It Works
 
-1. **Webhook Trigger**: When a PR is created/updated, GitHub sends a webhook to `/api/webhooks/github`
-2. **Repository Check**: The system verifies the repository is enabled for AI reviews
-3. **Code Analysis**: Fetches PR files and generates an AI review using the configured provider
-4. **GitHub Comment**: Posts the AI review as a comment on the PR
-5. **Dashboard Update**: Stores review data for analytics and history
+1. **Webhook Trigger**: When a PR is opened/updated/reopened, GitHub sends a webhook to `/api/webhooks/github` (signature-verified).
+2. **Repository Check**: With `REVIEW_ALL_REPOS=true` every installed repo is reviewed; otherwise only repos opted-in from the dashboard.
+3. **Diff Analysis**: Fetches the PR's changed files, parses each unified diff, and annotates every changed line with its real line number.
+4. **AI Review**: The configured LLM reviews only the changed lines and returns structured findings (file + line + severity + suggested fix).
+5. **Post to GitHub**: Findings are validated against the diff and posted as **inline review comments** (with ```suggestion``` blocks), plus a single **summary comment** that's upserted on each push.
+6. **Dashboard Update** *(optional)*: Review data is stored in MongoDB for history and analytics.
+
+## Self-hosting for your company
+
+1. Deploy this app anywhere it can run Node and receive GitHub webhooks (Vercel, a container, a VM).
+2. Create a GitHub App (see [GITHUB_APP_SETUP.md](GITHUB_APP_SETUP.md)) with **Pull requests: Read & write** and **Contents: Read**, subscribed to **Pull request** events, webhook URL `https://<your-host>/api/webhooks/github`.
+3. Set `REVIEW_ALL_REPOS=true`, one LLM provider's key, and the GitHub App credentials in your environment.
+4. Install the App on the org/repos you want reviewed. Open a PR — inline comments and a summary appear automatically. No per-repo configuration required.
 
 ## API Endpoints
 
@@ -113,26 +122,27 @@ An intelligent code review tool that automatically analyzes pull requests using 
 
 | Variable | Description | Required |
 |----------|-------------|----------|
-| `MONGODB_URI` | MongoDB connection string | Yes |
-| `GITHUB_CLIENT_ID` | GitHub OAuth App client ID | Yes |
-| `GITHUB_CLIENT_SECRET` | GitHub OAuth App client secret | Yes |
-| `NEXTAUTH_SECRET` | NextAuth.js secret key | Yes |
-| `NEXTAUTH_URL` | Application URL | Yes |
-| `GITHUB_WEBHOOK_SECRET` | Webhook secret for verification | Yes |
-| `GITHUB_APP_ID` | GitHub App ID (for bot comments) | No |
-| `GITHUB_APP_PRIVATE_KEY` | GitHub App private key (for bot comments) | No |
-| `GITHUB_APP_NAME` | GitHub App name for installation URLs (e.g., 'mega-miyya') | No |
-| `AI_PROVIDER` | AI provider (openai/ollama/huggingface) | Yes |
-| `OPENAI_API_KEY` | OpenAI API key | If using OpenAI |
-| `OPENAI_MODEL` | OpenAI model name | If using OpenAI |
-| `OLLAMA_URL` | Ollama server URL | If using Ollama |
-| `OLLAMA_MODEL` | Ollama model name | If using Ollama |
-| `HUGGINGFACE_API_KEY` | Hugging Face API key | If using Hugging Face |
-| `HUGGINGFACE_PROVIDER` | Hugging Face provider | If using Hugging Face |
-| `HUGGINGFACE_MODEL` | Hugging Face model name | If using Hugging Face |
-| `DEFAULT_AI_PROVIDER` | Default AI provider for new users | No |
+| `AI_PROVIDER` | `anthropic` \| `openai` \| `openai-compatible` \| `ollama` | Yes |
+| `ANTHROPIC_API_KEY` | Anthropic API key | If provider = anthropic |
+| `ANTHROPIC_MODEL` | Claude model (default `claude-opus-4-8`) | No |
+| `OPENAI_API_KEY` | OpenAI (or compatible endpoint) API key | If provider = openai/openai-compatible |
+| `OPENAI_MODEL` | Model name (default `gpt-4o`) | No |
+| `OPENAI_BASE_URL` | Base URL for an OpenAI-compatible endpoint | If provider = openai-compatible |
+| `OLLAMA_URL` | Ollama server URL (default `http://localhost:11434`) | If provider = ollama |
+| `OLLAMA_MODEL` | Ollama model name (default `codellama`) | If provider = ollama |
+| `LLM_MAX_TOKENS` / `LLM_TEMPERATURE` | Generation tuning | No |
+| `GITHUB_APP_ID` | GitHub App ID | Yes |
+| `GITHUB_APP_PRIVATE_KEY` | GitHub App private key | Yes |
+| `GITHUB_WEBHOOK_SECRET` | Webhook secret (verifies incoming webhooks) | Recommended |
+| `REVIEW_ALL_REPOS` | Review every installed repo without DB opt-in | No (default false) |
+| `MIN_SEVERITY` | Minimum severity for inline comments | No (default low) |
+| `REVIEW_MAX_FILES` / `REVIEW_MAX_DIFF_CHARS` | Safety caps for large PRs | No |
+| `REVIEW_EXCLUDE_GLOBS` | Comma-separated globs to skip | No |
+| `MONGODB_URI` | MongoDB connection (dashboard/history) | No |
+| `GITHUB_CLIENT_ID` / `GITHUB_CLIENT_SECRET` | GitHub OAuth (dashboard sign-in) | For dashboard |
+| `NEXTAUTH_URL` / `NEXTAUTH_SECRET` / `JWT_SECRET` | App auth secrets | For dashboard |
 
-> **Note**: Installation IDs are now detected automatically for each repository. No need to configure `GITHUB_APP_INSTALLATION_ID`!
+> **Note**: Installation IDs are detected automatically per repository — no need to configure `GITHUB_APP_INSTALLATION_ID`.
 
 ## Development
 
@@ -189,12 +199,11 @@ src/
 
 **GNU Affero General Public License v3.0 (AGPL-3.0)**
 
-This project is licensed under the GNU Affero General Public License v3.0. This ensures that:
-- Any derivative work must also be licensed under AGPL-3.0
-- If you run this software on a server accessible to others, you must provide them access to the source code
-- The software and its derivatives remain open source
+Copyright (C) 2026 [Ismoil](https://github.com/ismoil793).
 
-For the complete license text, see [LICENSE](LICENSE) file or visit: https://www.gnu.org/licenses/agpl-3.0.txt
+This project is licensed under the GNU Affero General Public License v3.0 or later. Modified versions distributed to others, or made available for users over a network, are subject to the source-code requirements of the AGPL.
+
+See [LICENSE](LICENSE) for the complete license terms and [NOTICE](NOTICE) for attribution information.
 
 ## Support
 

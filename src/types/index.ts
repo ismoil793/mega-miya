@@ -84,6 +84,22 @@ export interface ReviewResult {
   suggestions: Suggestion[];
   issues: Issue[];
   positiveAspects: string[];
+  /** Line-anchored inline findings, posted as PR review comments. */
+  comments?: ReviewComment[];
+}
+
+export type ReviewSeverity = 'low' | 'medium' | 'high' | 'critical';
+export type ReviewCategory = 'bug' | 'security' | 'performance' | 'style' | 'maintainability';
+
+export interface ReviewComment {
+  file: string;
+  line: number;
+  severity: ReviewSeverity;
+  category: ReviewCategory;
+  /** The reviewer's message for this line. */
+  body: string;
+  /** Optional replacement code rendered as a GitHub ```suggestion``` block. */
+  suggestion?: string;
 }
 
 export interface Suggestion {
