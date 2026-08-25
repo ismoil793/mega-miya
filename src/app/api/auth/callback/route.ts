@@ -7,6 +7,11 @@ import {
   setSessionCookie,
 } from '@/lib/auth';
 import { secureEqual } from '@/lib/auth-crypto';
+import {
+  ACCESS_CODE_RESERVATION_COOKIE,
+  bindAccessCodeToUser,
+  consumeAccessCodeReservation,
+} from '@/lib/access-codes';
 
 export const dynamic = 'force-dynamic';
 
@@ -105,6 +110,14 @@ export async function GET(request: NextRequest) {
     let user = await UserModel.findOne({ githubId: userData.id });
 
     if (!user) {
+      const reservationToken = request.cookies.get(ACCESS_CODE_RESERVATION_COOKIE)?.value || '';
+      const accessCodeId = await consumeAccessCodeReservation(reservationToken, userData.id);
+      if (!accessCodeId) {
+        const response = NextResponse.redirect(new URL('/?error=access_code_required', request.url));
+        response.cookies.delete(OAUTH_STATE_COOKIE);
+        response.cookies.delete(ACCESS_CODE_RESERVATION_COOKIE);
+        return response;
+      }
       // Create new user
       user = new UserModel({
         githubId: userData.id,
@@ -114,6 +127,7 @@ export async function GET(request: NextRequest) {
         avatarUrl: userData.avatar_url,
         authorizedAccounts,
         repositories: [],
+        invitedByAccessCodeId: accessCodeId,
         settings: {
           aiProvider: process.env.DEFAULT_AI_PROVIDER || 'openai',
           autoReview: true,
@@ -131,6 +145,9 @@ export async function GET(request: NextRequest) {
     user.accessToken = undefined;
 
     await user.save();
+    if (user.invitedByAccessCodeId) {
+      await bindAccessCodeToUser(user.invitedByAccessCodeId, user._id);
+    }
     await UserModel.updateOne({ _id: user._id }, { $unset: { accessToken: 1 } });
 
     const sessionToken = await createSession(user._id.toString());
@@ -144,6 +161,7 @@ export async function GET(request: NextRequest) {
     // Set session cookie
     setSessionCookie(response, sessionToken);
     response.cookies.delete(OAUTH_STATE_COOKIE);
+    response.cookies.delete(ACCESS_CODE_RESERVATION_COOKIE);
 
     return response;
 

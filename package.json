@@ -16,7 +16,8 @@
     "lint": "next lint",
     "type-check": "tsc --noEmit",
     "test": "jest",
-    "test:watch": "jest --watch"
+    "test:watch": "jest --watch",
+    "access-codes:generate": "node scripts/generate-access-codes.mjs"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.119.0",

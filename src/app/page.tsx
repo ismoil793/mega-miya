@@ -7,6 +7,7 @@ import RepositoryModal from '@/components/RepositoryModal';
 import GitHubAppInstallation from '@/components/GitHubAppInstallation';
 import LLMSettings from '@/components/LLMSettings';
 import ReviewSettings from '@/components/ReviewSettings';
+import AccessCodeGate from '@/components/AccessCodeGate';
 
 interface User {
   id: string;
@@ -64,7 +65,9 @@ export default function Dashboard() {
       window.history.replaceState({}, document.title, window.location.pathname);
     } else if (error) {
       setOauthStatus('error');
-      setOauthMessage(`Connection failed: ${error}`);
+      setOauthMessage(error === 'access_code_required'
+        ? 'A valid one-time access code is required for a new account.'
+        : `Connection failed: ${error}`);
       // Clear URL parameters
       window.history.replaceState({}, document.title, window.location.pathname);
     }
@@ -205,7 +208,7 @@ export default function Dashboard() {
                       Connecting...
                     </>
                   ) : (
-                    'Connect GitHub'
+                    'Returning user sign in'
                   )}
                 </button>
               )}
@@ -308,6 +311,7 @@ export default function Dashboard() {
 
       {/* Main Content */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {!user && <div className="mb-8"><AccessCodeGate onReturningUser={handleConnectGitHub} /></div>}
         {user && <div className="mb-8"><LLMSettings /></div>}
         {user && <div className="mb-8"><ReviewSettings /></div>}
 
@@ -403,9 +407,9 @@ export default function Dashboard() {
               {!user && (
                 <button 
                   className="btn-primary"
-                  onClick={handleConnectGitHub}
+                  onClick={() => document.getElementById('access-code')?.scrollIntoView({ behavior: 'smooth' })}
                 >
-                  Connect GitHub
+                  Enter an access code
                 </button>
               )}
             </div>

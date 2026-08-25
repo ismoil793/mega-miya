@@ -17,6 +17,7 @@ export interface UserData {
     role: 'owner' | 'member';
   }>;
   accessToken?: string; // Legacy field; removed after users reconnect.
+  invitedByAccessCodeId?: mongoose.Types.ObjectId;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -50,6 +51,7 @@ const UserSchema = new Schema<UserDocument>({
   settings: { type: UserSettingsSchema, default: () => ({}) },
   authorizedAccounts: { type: [AuthorizedAccountSchema], default: [] },
   accessToken: { type: String, select: false }, // Temporary legacy migration field.
+  invitedByAccessCodeId: { type: Schema.Types.ObjectId, ref: 'AccessCode', index: true },
 }, {
   timestamps: true,
 });
