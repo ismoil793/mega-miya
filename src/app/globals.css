@@ -45,14 +45,14 @@
 
 .landing-grid {
   background-image:
-    linear-gradient(rgba(92, 219, 149, 0.055) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(92, 219, 149, 0.055) 1px, transparent 1px),
-    radial-gradient(circle at 72% 32%, rgba(92, 219, 149, 0.13), transparent 34%);
+    linear-gradient(rgba(91, 70, 109, 0.06) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(91, 70, 109, 0.06) 1px, transparent 1px),
+    radial-gradient(circle at 72% 32%, rgba(117, 97, 132, 0.15), transparent 34%);
   background-size: 42px 42px, 42px 42px, 100% 100%;
 }
 
 ::selection {
-  background: rgba(92, 219, 149, 0.35);
+  background: rgba(117, 97, 132, 0.28);
 }
 
 @layer utilities {

@@ -47,6 +47,8 @@ export const metadata: Metadata = {
 export const viewport: Viewport = {
   width: 'device-width',
   initialScale: 1,
+  themeColor: '#fbfaf7',
+  colorScheme: 'light',
 };
 
 export default function RootLayout({
@@ -75,7 +77,7 @@ export default function RootLayout({
         />
       </head>
       <body className={inter.className}>
-        <div className="min-h-screen bg-gray-50">
+        <div className="min-h-screen bg-[#fbfaf7]">
           {children}
         </div>
       </body>

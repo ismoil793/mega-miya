@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import Image from 'next/image';
 import { CodeReview } from '@/types';
 import { formatDistanceToNow } from 'date-fns';
 import RepositoryModal from '@/components/RepositoryModal';
@@ -181,14 +182,17 @@ export default function Dashboard() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-[#fbfaf7]">
       {/* Header */}
       <header className="bg-white shadow-sm border-b border-gray-200">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center py-6">
-            <div>
-              <h1 className="text-3xl font-bold text-gray-900">Mega Miya</h1>
-              <p className="text-gray-600">AI-Powered Code Review Tool</p>
+            <div className="flex items-center gap-3">
+              <Image src="/brand/mega-miya.png" alt="Mega-Miya" width={42} height={42} priority />
+              <div>
+                <h1 className="text-2xl font-bold text-gray-900">Mega-Miya</h1>
+                <p className="text-sm text-gray-600">AI-powered code review</p>
+              </div>
             </div>
             <div className="flex items-center space-x-4">
               {user ? (
