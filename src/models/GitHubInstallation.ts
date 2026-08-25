@@ -14,6 +14,8 @@ export interface GitHubInstallationDocument extends Document {
   accountType: 'User' | 'Organization';
   status: 'active' | 'suspended';
   repositories: InstallationRepository[];
+  /** Maximum enabled repositories for this installation. Missing means unlimited. */
+  repositoryLimit?: number;
   reviewSettings?: {
     contextDepth: 'diff' | 'changed-files' | 'balanced' | 'deep';
     autoApproveWhenResolved: boolean;
@@ -36,6 +38,7 @@ const GitHubInstallationSchema = new Schema<GitHubInstallationDocument>({
   accountType: { type: String, enum: ['User', 'Organization'], required: true },
   status: { type: String, enum: ['active', 'suspended'], default: 'active' },
   repositories: { type: [InstallationRepositorySchema], default: [] },
+  repositoryLimit: { type: Number, min: 0 },
   reviewSettings: {
     contextDepth: { type: String, enum: ['diff', 'changed-files', 'balanced', 'deep'] },
     autoApproveWhenResolved: { type: Boolean, default: false },

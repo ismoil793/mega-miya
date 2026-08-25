@@ -12,6 +12,11 @@ interface Repository {
   stars: number;
   updatedAt: string;
   isEnabled: boolean;
+  installationId: number;
+  accountLogin: string;
+  repositoryLimit: number | null;
+  installationEnabledCount: number;
+  enabledByAnotherUser: boolean;
 }
 
 interface RepositoryModalProps {
@@ -85,6 +90,22 @@ export default function RepositoryModal({ isOpen, onClose, onSave }: RepositoryM
   };
 
   const toggleRepository = (fullName: string) => {
+    const repository = repositories.find(repo => repo.fullName === fullName);
+    if (repository && !selectedRepos.includes(fullName) && repository.repositoryLimit !== null) {
+      const selectedNewForInstallation = selectedRepos.filter((name) => {
+        const selected = repositories.find(repo => repo.fullName === name);
+        return selected?.installationId === repository.installationId && !selected.enabledByAnotherUser;
+      }).length;
+      const alreadyCountedForCurrentUser = repositories.filter(repo =>
+        repo.installationId === repository.installationId && repo.isEnabled && !repo.enabledByAnotherUser,
+      ).length;
+      const projectedCount = repository.installationEnabledCount - alreadyCountedForCurrentUser + selectedNewForInstallation + 1;
+      if (projectedCount > repository.repositoryLimit) {
+        setError(`${repository.accountLogin} can enable at most ${repository.repositoryLimit} ${repository.repositoryLimit === 1 ? 'repository' : 'repositories'}`);
+        return;
+      }
+    }
+    setError(null);
     setSelectedRepos(prev => 
       prev.includes(fullName)
         ? prev.filter(repo => repo !== fullName)
@@ -96,7 +117,24 @@ export default function RepositoryModal({ isOpen, onClose, onSave }: RepositoryM
     if (selectedRepos.length === filteredRepositories.length) {
       setSelectedRepos([]);
     } else {
-      setSelectedRepos(filteredRepositories.map(repo => repo.fullName));
+      const next = [...selectedRepos];
+      for (const repository of filteredRepositories) {
+        if (next.includes(repository.fullName)) continue;
+        const originalCurrentCount = repositories.filter(repo =>
+          repo.installationId === repository.installationId && repo.isEnabled && !repo.enabledByAnotherUser,
+        ).length;
+        const selectedCurrentCount = next.filter((name) => {
+          const selected = repositories.find(repo => repo.fullName === name);
+          return selected?.installationId === repository.installationId && !selected.enabledByAnotherUser;
+        }).length;
+        const projectedCount = repository.installationEnabledCount - originalCurrentCount
+          + selectedCurrentCount + (repository.enabledByAnotherUser ? 0 : 1);
+        if (repository.repositoryLimit === null || projectedCount <= repository.repositoryLimit) {
+          next.push(repository.fullName);
+        }
+      }
+      setError(null);
+      setSelectedRepos(next);
     }
   };
 
@@ -117,6 +155,9 @@ export default function RepositoryModal({ isOpen, onClose, onSave }: RepositoryM
             <p className="text-sm text-gray-600 mt-1">
               Choose which repositories to enable AI code reviews for
             </p>
+            {repositories.some(repo => repo.repositoryLimit !== null) && (
+              <p className="mt-2 text-xs text-[#5b466d]">Repository limits are assigned per GitHub organization.</p>
+            )}
           </div>
           <button
             onClick={onClose}
@@ -239,6 +280,11 @@ export default function RepositoryModal({ isOpen, onClose, onSave }: RepositoryM
                               {repo.private && (
                                 <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
                                   Private
+                                </span>
+                              )}
+                              {repo.repositoryLimit !== null && (
+                                <span className="inline-flex items-center rounded-full bg-[#f3eff7] px-2 py-1 text-xs font-medium text-[#5b466d]">
+                                  {repo.accountLogin}: {repo.installationEnabledCount}/{repo.repositoryLimit}
                                 </span>
                               )}
                               {repo.language && (

@@ -149,6 +149,26 @@ An intelligent code review tool that automatically analyzes pull requests using 
 
 > **Note**: Installation IDs are detected automatically per repository — no need to configure `GITHUB_APP_INSTALLATION_ID`.
 
+### Optional per-organization repository limits
+
+Hosted operators can limit how many repositories are enabled for an individual GitHub App installation by setting `repositoryLimit` on its `githubinstallations` MongoDB document. The limit is shared across users who administer that installation. Leave the field absent for unlimited repositories, which is the default for self-hosted deployments.
+
+```javascript
+// Allow at most two enabled repositories for this GitHub organization.
+db.githubinstallations.updateOne(
+  { installationId: 12345678 },
+  { $set: { repositoryLimit: 2 } }
+)
+
+// Restore unlimited repository enablement.
+db.githubinstallations.updateOne(
+  { installationId: 12345678 },
+  { $unset: { repositoryLimit: "" } }
+)
+```
+
+The repository API enforces the limit server-side. `REVIEW_ALL_REPOS=true` intentionally bypasses dashboard opt-in and is therefore intended only for unrestricted self-hosted installations.
+
 ## Development
 
 ### Project Structure
