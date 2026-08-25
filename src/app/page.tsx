@@ -29,6 +29,7 @@ export default function Dashboard() {
   const [oauthStatus, setOauthStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
   const [oauthMessage, setOauthMessage] = useState<string>('');
   const [showRepositoryModal, setShowRepositoryModal] = useState(false);
+  const [accessCodeRequired, setAccessCodeRequired] = useState(false);
 
   useEffect(() => {
     checkOAuthStatus();
@@ -39,6 +40,7 @@ export default function Dashboard() {
     try {
       const response = await fetch('/api/auth/me');
       const data = await response.json();
+      setAccessCodeRequired(Boolean(data.accessCodeRequired));
       
       if (data.user) {
         setUser(data.user);
@@ -208,7 +210,7 @@ export default function Dashboard() {
                       Connecting...
                     </>
                   ) : (
-                    'Returning user sign in'
+                    accessCodeRequired ? 'Returning user sign in' : 'Connect GitHub'
                   )}
                 </button>
               )}
@@ -311,7 +313,7 @@ export default function Dashboard() {
 
       {/* Main Content */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {!user && <div className="mb-8"><AccessCodeGate onReturningUser={handleConnectGitHub} /></div>}
+        {!user && accessCodeRequired && <div className="mb-8"><AccessCodeGate onReturningUser={handleConnectGitHub} /></div>}
         {user && <div className="mb-8"><LLMSettings /></div>}
         {user && <div className="mb-8"><ReviewSettings /></div>}
 
@@ -407,9 +409,11 @@ export default function Dashboard() {
               {!user && (
                 <button 
                   className="btn-primary"
-                  onClick={() => document.getElementById('access-code')?.scrollIntoView({ behavior: 'smooth' })}
+                  onClick={accessCodeRequired
+                    ? () => document.getElementById('access-code')?.scrollIntoView({ behavior: 'smooth' })
+                    : handleConnectGitHub}
                 >
-                  Enter an access code
+                  {accessCodeRequired ? 'Enter an access code' : 'Connect GitHub'}
                 </button>
               )}
             </div>

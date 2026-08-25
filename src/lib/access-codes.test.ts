@@ -1,7 +1,16 @@
 /** @jest-environment node */
-import { hashAccessCode, isPlausibleAccessCode, normalizeAccessCode } from './access-codes';
+import { accessCodesRequired, hashAccessCode, isPlausibleAccessCode, normalizeAccessCode } from './access-codes';
 
 describe('access-code primitives', () => {
+  afterEach(() => delete process.env.REQUIRE_ACCESS_CODE);
+
+  it('is disabled by default and enabled only by an explicit true value', () => {
+    expect(accessCodesRequired()).toBe(false);
+    process.env.REQUIRE_ACCESS_CODE = 'true';
+    expect(accessCodesRequired()).toBe(true);
+    process.env.REQUIRE_ACCESS_CODE = 'false';
+    expect(accessCodesRequired()).toBe(false);
+  });
   it('normalizes case and surrounding whitespace', () => {
     expect(normalizeAccessCode('  mm-abcd-efgh-jkmn-pqrs  ')).toBe('MM-ABCD-EFGH-JKMN-PQRS');
   });

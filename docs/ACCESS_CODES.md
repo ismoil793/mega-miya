@@ -2,6 +2,14 @@
 
 Mega-Miya uses one-time invitation codes for new hosted accounts. Returning users who already exist in the `users` collection can sign in again without another code.
 
+The feature is optional and disabled by default. Enable it in the deployment environment:
+
+```env
+REQUIRE_ACCESS_CODE=true
+```
+
+When the variable is absent or `false`, new and returning users use the normal GitHub connection flow, and the code-redemption API returns `404`. Changing the flag never forces existing users to enter a code.
+
 ## Security model
 
 - Shareable plaintext codes are never stored by the application or committed to the repository.

@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { ACCESS_CODE_RESERVATION_COOKIE, ACCESS_CODE_RESERVATION_SECONDS, reserveAccessCode } from '@/lib/access-codes';
+import { ACCESS_CODE_RESERVATION_COOKIE, ACCESS_CODE_RESERVATION_SECONDS, accessCodesRequired, reserveAccessCode } from '@/lib/access-codes';
 import { hasValidRequestOrigin } from '@/lib/auth';
 
 export async function POST(request: NextRequest) {
   try {
+    if (!accessCodesRequired()) return NextResponse.json({ error: 'Access codes are disabled.' }, { status: 404 });
     if (!hasValidRequestOrigin(request)) return NextResponse.json({ error: 'Invalid request origin' }, { status: 403 });
     const contentLength = Number(request.headers.get('content-length') || 0);
     if (contentLength > 2_000) return NextResponse.json({ error: 'Payload too large' }, { status: 413 });

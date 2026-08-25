@@ -6,6 +6,10 @@ import { AccessCodeModel } from '@/models/AccessCode';
 export const ACCESS_CODE_RESERVATION_COOKIE = 'access_code_reservation';
 export const ACCESS_CODE_RESERVATION_SECONDS = 15 * 60;
 
+export function accessCodesRequired(): boolean {
+  return String(process.env.REQUIRE_ACCESS_CODE || '').toLowerCase() === 'true';
+}
+
 export function normalizeAccessCode(code: string): string {
   return code.trim().toUpperCase();
 }
