@@ -136,7 +136,7 @@ export default function RepositoryModal({ isOpen, onClose, onSave }: RepositoryM
               placeholder="Search repositories..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
             />
             <svg
               className="absolute left-3 top-2.5 h-5 w-5 text-gray-400"
@@ -153,7 +153,7 @@ export default function RepositoryModal({ isOpen, onClose, onSave }: RepositoryM
         <div className="flex-1 overflow-y-auto p-6">
           {loading ? (
             <div className="flex items-center justify-center py-12">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600"></div>
               <span className="ml-3 text-gray-600">Loading repositories...</span>
             </div>
           ) : error ? (
@@ -178,7 +178,7 @@ export default function RepositoryModal({ isOpen, onClose, onSave }: RepositoryM
                       type="checkbox"
                       checked={selectedRepos.length === filteredRepositories.length && filteredRepositories.length > 0}
                       onChange={toggleAll}
-                      className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                    className="rounded border-gray-300 text-primary-600 focus:ring-primary-500"
                     />
                     <span className="ml-3 font-medium text-gray-900">
                       Select All ({selectedRepos.length}/{filteredRepositories.length})
@@ -218,7 +218,7 @@ export default function RepositoryModal({ isOpen, onClose, onSave }: RepositoryM
                       key={repo.id}
                       className={`p-4 border rounded-lg transition-colors ${
                         selectedRepos.includes(repo.fullName)
-                          ? 'border-blue-500 bg-blue-50'
+                          ? 'border-primary-500 bg-primary-50'
                           : 'border-gray-200 hover:border-gray-300'
                       }`}
                     >
@@ -227,7 +227,7 @@ export default function RepositoryModal({ isOpen, onClose, onSave }: RepositoryM
                           type="checkbox"
                           checked={selectedRepos.includes(repo.fullName)}
                           onChange={() => toggleRepository(repo.fullName)}
-                          className="mt-1 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                          className="mt-1 rounded border-gray-300 text-primary-600 focus:ring-primary-500"
                         />
                         <div className="ml-3 flex-1">
                           <div className="flex items-center justify-between">
@@ -242,7 +242,7 @@ export default function RepositoryModal({ isOpen, onClose, onSave }: RepositoryM
                                 </span>
                               )}
                               {repo.language && (
-                                <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                                <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-primary-100 text-primary-700">
                                   {repo.language}
                                 </span>
                               )}

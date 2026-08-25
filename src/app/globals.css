@@ -5,20 +5,21 @@
 @layer base {
   html {
     font-family: system-ui, sans-serif;
+    scroll-behavior: smooth;
   }
 }
 
 @layer components {
   .btn-primary {
-    @apply bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded-lg transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2;
+    @apply bg-primary-600 hover:bg-primary-700 text-white font-medium py-2 px-4 rounded-lg transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2;
   }
   
   .btn-secondary {
-    @apply bg-gray-200 hover:bg-gray-300 text-gray-900 font-medium py-2 px-4 rounded-lg transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2;
+    @apply bg-white hover:bg-primary-50 text-gray-900 font-medium py-2 px-4 rounded-lg border border-gray-300 transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2;
   }
   
   .card {
-    @apply bg-white rounded-lg shadow-sm border border-gray-200 p-6;
+    @apply bg-white rounded-xl shadow-sm border border-gray-200 p-6;
   }
   
   .badge {
@@ -38,8 +39,20 @@
   }
   
   .badge-info {
-    @apply bg-blue-100 text-blue-800;
+    @apply bg-primary-100 text-primary-700;
   }
+}
+
+.landing-grid {
+  background-image:
+    linear-gradient(rgba(92, 219, 149, 0.055) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(92, 219, 149, 0.055) 1px, transparent 1px),
+    radial-gradient(circle at 72% 32%, rgba(92, 219, 149, 0.13), transparent 34%);
+  background-size: 42px 42px, 42px 42px, 100% 100%;
+}
+
+::selection {
+  background: rgba(92, 219, 149, 0.35);
 }
 
 @layer utilities {
@@ -49,4 +62,4 @@
     -webkit-box-orient: vertical;
     overflow: hidden;
   }
-} 
+}

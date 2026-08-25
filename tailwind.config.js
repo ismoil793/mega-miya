@@ -9,10 +9,11 @@ module.exports = {
     extend: {
       colors: {
         primary: {
-          50: '#eff6ff',
-          500: '#3b82f6',
-          600: '#2563eb',
-          700: '#1d4ed8',
+          50: '#effdf5',
+          100: '#d9fbe7',
+          500: '#32b66a',
+          600: '#209653',
+          700: '#197744',
         },
         gray: {
           50: '#f9fafb',
@@ -30,4 +31,4 @@ module.exports = {
     },
   },
   plugins: [],
-} 
+}

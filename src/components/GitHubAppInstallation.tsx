@@ -143,9 +143,9 @@ export default function GitHubAppInstallation({ repositories, onInstallationComp
             </div>
 
             <div className="space-y-4">
-              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                <h4 className="font-medium text-blue-900 mb-2">Why install the GitHub App?</h4>
-                <ul className="text-sm text-blue-800 space-y-1">
+              <div className="bg-primary-50 border border-primary-100 rounded-lg p-4">
+                <h4 className="font-medium text-primary-700 mb-2">Why install the GitHub App?</h4>
+                <ul className="text-sm text-primary-700 space-y-1">
                   <li>• AI review comments appear under the bot&apos;s name</li>
                   <li>• Clear separation between human and AI comments</li>
                   <li>• Professional appearance for automated reviews</li>

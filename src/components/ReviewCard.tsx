@@ -82,11 +82,11 @@ export default function ReviewCard({ review, onViewDetails }: ReviewCardProps) {
               </div>
             </div>
 
-            <div className="bg-blue-50 p-3 rounded-lg">
-              <div className="font-medium text-blue-800 mb-1">
+            <div className="bg-primary-50 p-3 rounded-lg">
+              <div className="font-medium text-primary-700 mb-1">
                 💡 Suggestions
               </div>
-              <div className="text-blue-700">
+              <div className="text-primary-700">
                 {review.review.suggestions.length} suggestions provided
               </div>
             </div>

@@ -28,7 +28,7 @@ export default function AccessCodeGate({ onReturningUser }: { onReturningUser: (
 
   return (
     <section id="access-code" className="card border border-primary-100">
-      <h2 className="text-xl font-semibold text-gray-900">Private access</h2>
+      <h2 id="access-code-title" className="text-xl font-semibold text-gray-900">Private access</h2>
       <p className="mt-1 text-sm text-gray-600">
         Mega-Miya is currently invite-only. Enter the one-time code shared with you, then connect your GitHub account.
       </p>

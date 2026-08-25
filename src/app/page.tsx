@@ -7,7 +7,7 @@ import RepositoryModal from '@/components/RepositoryModal';
 import GitHubAppInstallation from '@/components/GitHubAppInstallation';
 import LLMSettings from '@/components/LLMSettings';
 import ReviewSettings from '@/components/ReviewSettings';
-import AccessCodeGate from '@/components/AccessCodeGate';
+import LandingPage from '@/components/LandingPage';
 
 interface User {
   id: string;
@@ -169,6 +169,17 @@ export default function Dashboard() {
     );
   }
 
+  if (!user) {
+    return (
+      <LandingPage
+        accessCodeRequired={accessCodeRequired}
+        oauthStatus={oauthStatus}
+        oauthMessage={oauthMessage}
+        onConnect={handleConnectGitHub}
+      />
+    );
+  }
+
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
@@ -313,7 +324,6 @@ export default function Dashboard() {
 
       {/* Main Content */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {!user && accessCodeRequired && <div className="mb-8"><AccessCodeGate onReturningUser={handleConnectGitHub} /></div>}
         {user && <div className="mb-8"><LLMSettings /></div>}
         {user && <div className="mb-8"><ReviewSettings /></div>}
 
@@ -322,8 +332,8 @@ export default function Dashboard() {
           <div className="card">
             <div className="flex items-center">
               <div className="flex-shrink-0">
-                <div className="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center">
-                  <span className="text-blue-600 text-lg">📊</span>
+                <div className="w-8 h-8 bg-primary-100 rounded-lg flex items-center justify-center">
+                  <span className="text-primary-700 text-lg">📊</span>
                 </div>
               </div>
               <div className="ml-4">
@@ -470,7 +480,7 @@ export default function Dashboard() {
           Mega Miya is licensed under the AGPL-3.0-or-later.{' '}
           <a
             href="https://github.com/ismoil793/mega-miya"
-            className="font-medium text-blue-600 hover:text-blue-800"
+            className="font-medium text-primary-600 hover:text-primary-700"
             target="_blank"
             rel="noreferrer"
           >
@@ -479,7 +489,7 @@ export default function Dashboard() {
           {' '}· Copyright © 2026{' '}
           <a
             href="https://github.com/ismoil793"
-            className="font-medium text-blue-600 hover:text-blue-800"
+            className="font-medium text-primary-600 hover:text-primary-700"
             target="_blank"
             rel="noreferrer"
           >
