@@ -7,7 +7,7 @@ export const ACCESS_CODE_RESERVATION_COOKIE = 'access_code_reservation';
 export const ACCESS_CODE_RESERVATION_SECONDS = 15 * 60;
 
 export function accessCodesRequired(): boolean {
-  return String(process.env.REQUIRE_ACCESS_CODE || '').toLowerCase() === 'true';
+  return String(process.env.REQUIRE_ACCESS_CODE_FOR_NEW_USERS || '').toLowerCase() === 'true';
 }
 
 export function normalizeAccessCode(code: string): string {

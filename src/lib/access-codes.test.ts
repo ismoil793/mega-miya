@@ -2,13 +2,13 @@
 import { accessCodesRequired, hashAccessCode, isPlausibleAccessCode, normalizeAccessCode } from './access-codes';
 
 describe('access-code primitives', () => {
-  afterEach(() => delete process.env.REQUIRE_ACCESS_CODE);
+  afterEach(() => delete process.env.REQUIRE_ACCESS_CODE_FOR_NEW_USERS);
 
   it('is disabled by default and enabled only by an explicit true value', () => {
     expect(accessCodesRequired()).toBe(false);
-    process.env.REQUIRE_ACCESS_CODE = 'true';
+    process.env.REQUIRE_ACCESS_CODE_FOR_NEW_USERS = 'true';
     expect(accessCodesRequired()).toBe(true);
-    process.env.REQUIRE_ACCESS_CODE = 'false';
+    process.env.REQUIRE_ACCESS_CODE_FOR_NEW_USERS = 'false';
     expect(accessCodesRequired()).toBe(false);
   });
   it('normalizes case and surrounding whitespace', () => {
